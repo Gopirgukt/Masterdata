@@ -59,6 +59,21 @@ export function statusToneClass(status: string | null | undefined): string {
   return "";
 }
 
+export type StatusCategory = "P1" | "P2" | "Hold" | "Reject" | "Other";
+
+/** Buckets a tech team status string into one of the four decision categories
+ * (or "Other" for blank/in-progress statuses) — same keyword rules as
+ * statusToneClass, split out so callers can tally counts per category
+ * (e.g. per-company P1/P2/Hold/Reject breakdowns) instead of just coloring text. */
+export function categorizeStatus(status: string | null | undefined): StatusCategory {
+  const s = (status ?? "").toLowerCase();
+  if (s.includes("reject")) return "Reject";
+  if (s.includes("hold")) return "Hold";
+  if (s.includes("p1")) return "P1";
+  if (s.includes("p2")) return "P2";
+  return "Other";
+}
+
 export function splitSkills(raw: string | null | undefined): string[] {
   if (!raw) return [];
   // Real sheet data uses "→" as a delimiter (e.g. "Python → LangChain → RAG")

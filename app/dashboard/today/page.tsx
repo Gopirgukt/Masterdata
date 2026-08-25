@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useCompanies } from "@/lib/useCompanies";
-import { dashIfEmpty, formatStartTime, parseTimeToMinutes, statusToneClass } from "@/lib/format";
+import { categorizeStatus, dashIfEmpty, formatStartTime, parseTimeToMinutes, statusToneClass } from "@/lib/format";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { CompanyFilter } from "@/components/CompanyFilter";
 import { MiniCalendar, monthOf, type ViewMonth } from "@/components/MiniCalendar";
@@ -103,6 +103,25 @@ export default function TodayInterviewsPage() {
     .filter((r) => (selectedDate ? r.tech_screening_date === selectedDate : bucketOf(r.tech_screening_date) === activeBucket))
     .sort((a, b) => parseTimeToMinutes(a.tech_screening_time) - parseTimeToMinutes(b.tech_screening_time));
 
+  // Per-company decision breakdown for whatever's currently in view (a bucket
+  // or a picked calendar date) — "Other" (blank/in-progress statuses) is
+  // tracked but not shown, so a company with only pending interviews just
+  // doesn't render a count instead of cluttering the row with "Other: 3".
+  const companyBreakdown = new Map<string, Record<"P1" | "P2" | "Hold" | "Reject" | "Other", number>>();
+  for (const r of filteredRows) {
+    const companyName = r.companies?.name ?? "Unknown";
+    if (!companyBreakdown.has(companyName)) {
+      companyBreakdown.set(companyName, { P1: 0, P2: 0, Hold: 0, Reject: 0, Other: 0 });
+    }
+    companyBreakdown.get(companyName)![categorizeStatus(r.tech_status)]++;
+  }
+  const breakdownToneClass: Record<"P1" | "P2" | "Hold" | "Reject", string> = {
+    P1: "text-success",
+    P2: "text-success",
+    Hold: "text-accent",
+    Reject: "text-danger",
+  };
+
   const chips: { key: Bucket; label: string; tone: "accent" | "neutral" | "danger" }[] = [
     { key: "today", label: "Today", tone: "accent" },
     { key: "tomorrow", label: "Tomorrow", tone: "neutral" },
@@ -168,6 +187,36 @@ export default function TodayInterviewsPage() {
             <button onClick={() => setSelectedDate(null)} className="text-accent hover:underline">
               Clear
             </button>
+          </div>
+        )}
+
+        {!loading && companyBreakdown.size > 0 && (
+          <div className="flex flex-col gap-2">
+            <div className="text-sm text-ink-secondary">
+              {companyBreakdown.size} {companyBreakdown.size === 1 ? "company" : "companies"}
+            </div>
+            <div className="flex flex-wrap gap-3">
+              {[...companyBreakdown.entries()].map(([companyName, tally]) => {
+                const parts = (["P1", "P2", "Hold", "Reject"] as const).filter((cat) => tally[cat] > 0);
+                return (
+                  <div
+                    key={companyName}
+                    className="flex items-center gap-2 rounded-md border border-line bg-surface px-3 py-2 text-sm"
+                  >
+                    <span className="font-medium text-ink">{companyName}</span>
+                    {parts.length === 0 ? (
+                      <span className="text-ink-muted">pending</span>
+                    ) : (
+                      parts.map((cat) => (
+                        <span key={cat} className={breakdownToneClass[cat]}>
+                          {cat}-{tally[cat]}
+                        </span>
+                      ))
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 
