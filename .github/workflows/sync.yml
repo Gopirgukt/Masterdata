@@ -2,8 +2,10 @@ name: Hourly Google Sheets sync
 
 on:
   schedule:
-    # Every hour, minute 30, hours 2-14 UTC = ~7:30am-7:30pm IST.
-    - cron: "30 2-14 * * *"
+    # Every hour, minute 30, hours 2-14 UTC = 8:00am-8:00pm IST, Mon-Sat
+    # (day-of-week 1-6; GitHub Actions cron runs in UTC, and this window
+    # never crosses a UTC/IST day boundary so 1-6 UTC = 1-6 IST here).
+    - cron: "30 2-14 * * 1-6"
   workflow_dispatch: {}
 
 jobs:
