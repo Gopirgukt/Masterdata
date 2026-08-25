@@ -30,12 +30,14 @@ const HEADER_MAP = {
 
 type FieldKey = keyof typeof HEADER_MAP;
 
-function buildHeaderIndex(headers: string[]): Partial<Record<FieldKey, number>> {
+function buildHeaderIndex(headers: string[], preferLastFor: ReadonlySet<FieldKey> = new Set()): Partial<Record<FieldKey, number>> {
   const normalized = headers.map((h) => h.trim().toLowerCase());
   const index: Partial<Record<FieldKey, number>> = {};
   for (const key of Object.keys(HEADER_MAP) as FieldKey[]) {
     const target = HEADER_MAP[key].trim().toLowerCase();
-    const pos = normalized.findIndex((h) => h === target);
+    const pos = preferLastFor.has(key)
+      ? normalized.lastIndexOf(target)
+      : normalized.findIndex((h) => h === target);
     if (pos !== -1) index[key] = pos;
   }
   return index;
@@ -56,6 +58,17 @@ function cell(row: string[], index: Partial<Record<FieldKey, number>>, key: Fiel
 // (case-insensitive, matches companies.name).
 const NAME_COLUMN_OVERRIDE_BY_COMPANY: Record<string, number> = {
   honebi: 1,
+};
+
+// NMT Security's "JD_1" tab has the Tech Screening column block (Date/Time/
+// Meeting Link/Taken By) appearing TWICE in row 1 (confirmed 2026-08-25) — the
+// first occurrence is consistently left blank and the real schedule is
+// recorded under the second one. findIndex() always grabs the first (blank)
+// occurrence, so these companies' interviews synced with a null date despite
+// being genuinely scheduled. Scoped to just the affected fields/companies
+// rather than changing the default (first-match) behavior everywhere.
+const PREFER_LAST_HEADER_OCCURRENCE_BY_COMPANY: Record<string, FieldKey[]> = {
+  "nmt security": ["techScreeningDate", "techScreeningTime", "techScreeningTakenBy"],
 };
 
 const MONTH_NAMES: Record<string, string> = {
@@ -209,8 +222,10 @@ export type MappedCandidateRow = Partial<Candidate> & { name: string };
  *   "Gopichand", "gopichand" etc. across different companies' sheets.
  */
 export function mapSheetRow(row: string[], headers: string[], companyName?: string): MappedCandidateRow | null {
-  const index = buildHeaderIndex(headers);
-  const nameOverride = companyName ? NAME_COLUMN_OVERRIDE_BY_COMPANY[companyName.trim().toLowerCase()] : undefined;
+  const companyKey = companyName?.trim().toLowerCase();
+  const preferLastFor = new Set(companyKey ? (PREFER_LAST_HEADER_OCCURRENCE_BY_COMPANY[companyKey] ?? []) : []);
+  const index = buildHeaderIndex(headers, preferLastFor);
+  const nameOverride = companyKey ? NAME_COLUMN_OVERRIDE_BY_COMPANY[companyKey] : undefined;
   const name = nameOverride !== undefined ? (row[nameOverride] ?? "").trim() : cell(row, index, "name");
   if (!name) return null;
 
