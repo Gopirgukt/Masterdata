@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useCompanies } from "@/lib/useCompanies";
-import { dashIfEmpty, parseTimeToMinutes, statusToneClass } from "@/lib/format";
+import { dashIfEmpty, formatStartTime, parseTimeToMinutes, statusToneClass } from "@/lib/format";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { CompanyFilter } from "@/components/CompanyFilter";
 import { MiniCalendar, monthOf, type ViewMonth } from "@/components/MiniCalendar";
@@ -191,7 +191,7 @@ export default function TodayInterviewsPage() {
               filteredRows.map((r) => (
                 <Tr key={r.id}>
                   <Td>{dashIfEmpty(r.tech_screening_date)}</Td>
-                  <Td>{dashIfEmpty(r.tech_screening_time)}</Td>
+                  <Td>{formatStartTime(r.tech_screening_time)}</Td>
                   <Td>{dashIfEmpty(r.name)}</Td>
                   <Td>{r.companies?.name ?? "-"}</Td>
                   <Td>{dashIfEmpty(r.tech_screening_taken_by)}</Td>

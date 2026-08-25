@@ -38,6 +38,16 @@ export function parseTimeToMinutes(raw: string | null | undefined): number {
   return hour * 60 + minute;
 }
 
+/** Displays just the start time for a range-style slot ("11:00 AM to 11:30 AM"
+ * -> "11:00 AM") — confirmed with the user 2026-08-25 that the range's second
+ * half is noise for a quick glance at the schedule. Falls back to the raw
+ * value when it isn't a range (e.g. WMS's plain "1:00 PM"). */
+export function formatStartTime(raw: string | null | undefined): string {
+  if (!raw || raw.trim() === "") return "-";
+  const match = raw.match(/(\d{1,2}[:.]\d{2}(?::\d{2})?\s*(?:AM|PM))/i);
+  return match ? match[1] : raw;
+}
+
 /** Text color for a status string (TR status / Tech team status), by keyword —
  * P1/P2 green, Hold blue, Reject red. Same keyword logic already used elsewhere
  * (Interviewer Report counts, Company Analytics selected/rejected) for consistency. */
