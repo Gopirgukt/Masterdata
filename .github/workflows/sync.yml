@@ -14,6 +14,18 @@ jobs:
     steps:
       - name: Call /api/sync
         run: |
-          curl --fail --show-error --silent \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "${{ secrets.SYNC_URL }}"
+          # A cold Vercel function start can push the real sync work past the
+          # platform's hard 60s limit (confirmed 2026-08-25: one run never
+          # finished server-side; retrying immediately after hit an
+          # already-warm container and finished in 36s) — retry a couple of
+          # times before giving up.
+          for attempt in 1 2 3; do
+            if curl --fail --show-error --silent \
+              -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+              "${{ secrets.SYNC_URL }}"; then
+              exit 0
+            fi
+            echo "Attempt $attempt failed, retrying in 10s..."
+            sleep 10
+          done
+          exit 1
