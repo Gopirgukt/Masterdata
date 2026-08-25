@@ -18,8 +18,14 @@ export function recordingHref(link: string | null | undefined): { label: string;
  * for chronological sorting — lexicographic sort would put "10:00 AM" before "2:00 PM".
  * Unparseable/missing values (seen in real data, e.g. ":15 PM" with no hour) sort last.
  */
+// Matches the first clock time anywhere in the string, tolerating a "." minute
+// separator, optional seconds, and trailing text — confirmed 2026-08-25: NMT
+// Security records slots as ranges ("10:30 AM to 11:00 AM"), which the old
+// exact-match regex didn't match at all, so every one of their interviews
+// sorted to the end regardless of actual time. Sorting by the range's START
+// time is what "morning to evening" means here.
 export function parseTimeToMinutes(raw: string | null | undefined): number {
-  const match = (raw ?? "").trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  const match = (raw ?? "").match(/(\d{1,2})[:.](\d{2})(?::\d{2})?\s*(AM|PM)/i);
   if (!match) return Infinity;
 
   let hour = parseInt(match[1], 10);
