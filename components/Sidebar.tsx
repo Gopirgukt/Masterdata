@@ -10,8 +10,8 @@ export function Sidebar() {
   return (
     <nav className="fixed inset-y-0 left-0 w-64 shrink-0 border-r border-line bg-surface py-6 flex flex-col overflow-y-auto">
       <div className="flex items-center gap-2 px-5 mb-6">
-        <span className="flex h-7 w-7 items-center justify-center rounded-md bg-accent text-accent-ink text-sm font-semibold">R</span>
-        <span className="text-sm font-semibold text-ink">Recruiting Dashboard</span>
+        <span className="flex h-7 w-7 items-center justify-center rounded-md bg-accent text-accent-ink text-sm font-semibold">H</span>
+        <span className="text-sm font-semibold text-ink">HireBoard</span>
       </div>
       <ul className="flex flex-col gap-0.5 px-3">
         {NAV_ITEMS.map((item) => {

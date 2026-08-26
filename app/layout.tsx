@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Recruiting Master Dashboard",
+  title: "HireBoard",
   description: "Recruiting pipeline dashboard backed by Supabase",
 };
 
