@@ -46,7 +46,11 @@ export function MiniCalendar({
   const firstOfMonth = new Date(view.year, view.month, 1);
   const daysInMonth = new Date(view.year, view.month + 1, 0).getDate();
   const startWeekday = firstOfMonth.getDay();
-  const monthLabel = firstOfMonth.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  // Explicit locale — an unspecified one can format differently between the
+  // server's default and the visitor's browser locale, causing a hydration
+  // mismatch (confirmed 2026-08-26, same root cause as lib/format.ts's
+  // toIsoDate/formatDateLabel).
+  const monthLabel = firstOfMonth.toLocaleDateString("en-US", { month: "long", year: "numeric" });
 
   const cells: (number | null)[] = [
     ...Array.from({ length: startWeekday }, () => null),

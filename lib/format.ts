@@ -2,19 +2,33 @@ export function yesNo(value: boolean | null | undefined): "Yes" | "No" {
   return value ? "Yes" : "No";
 }
 
-// Local date components, not `.toISOString()` — that converts to UTC first,
-// which silently shifts "today" back a day for IST users in the early-morning
-// hours (confirmed 2026-08-21: this app's users are all IST-based).
+// Explicit Asia/Kolkata timezone, not the host's local date getters
+// (getFullYear/getMonth/getDate) or `.toISOString()` (which is UTC). This app's
+// users are all IST-based (confirmed 2026-08-21), but these "today"/"tomorrow"
+// pages are client components that also render once on the server — Vercel's
+// server runs in UTC while the browser runs in IST, so local getters gave the
+// server and client different calendar dates for ~5.5 hours a day (whenever
+// it's already tomorrow in IST but not yet in UTC), producing a React
+// hydration mismatch on every date-dependent text node (confirmed 2026-08-26).
+// Pinning the timezone explicitly makes server and client agree always.
 export function toIsoDate(d: Date): string {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(d);
+  const get = (type: string) => parts.find((p) => p.type === type)!.value;
+  return `${get("year")}-${get("month")}-${get("day")}`;
 }
 
+// Explicit locale ("en-US", not the browser/server's default) for the same
+// reason — an unspecified locale can format differently between Node's
+// server-side default and the visitor's browser locale, which is also a
+// hydration-mismatch source.
 export function formatDateLabel(iso: string): string {
   const [year, month, day] = iso.split("-").map(Number);
-  return new Date(year, month - 1, day).toLocaleDateString(undefined, {
+  return new Date(year, month - 1, day).toLocaleDateString("en-US", {
     weekday: "long",
     day: "numeric",
     month: "long",
