@@ -3,7 +3,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useCompanies } from "@/lib/useCompanies";
-import { categorizeStatus, dashIfEmpty, formatStartTime, parseTimeToMinutes, statusToneClass } from "@/lib/format";
+import {
+  categorizeStatus,
+  dashIfEmpty,
+  formatDateLabel,
+  formatStartTime,
+  parseTimeToMinutes,
+  statusToneClass,
+  toIsoDate,
+} from "@/lib/format";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { CompanyFilter } from "@/components/CompanyFilter";
 import { MiniCalendar, monthOf, type ViewMonth } from "@/components/MiniCalendar";
@@ -11,26 +19,6 @@ import { Table, Th, Td, Tr, EmptyRow, LoadingRow } from "@/components/Table";
 import type { CandidateWithCompany } from "@/lib/types";
 
 type Bucket = "today" | "tomorrow" | "missed";
-
-// Local date components, not `.toISOString()` — that converts to UTC first,
-// which silently shifts "today" back a day for IST users in the early-morning
-// hours (confirmed 2026-08-21: this app's users are all IST-based).
-function toIsoDate(d: Date): string {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function formatDateLabel(iso: string): string {
-  const [year, month, day] = iso.split("-").map(Number);
-  return new Date(year, month - 1, day).toLocaleDateString(undefined, {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-}
 
 export default function TodayInterviewsPage() {
   const companies = useCompanies();

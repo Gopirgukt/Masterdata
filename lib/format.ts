@@ -2,6 +2,26 @@ export function yesNo(value: boolean | null | undefined): "Yes" | "No" {
   return value ? "Yes" : "No";
 }
 
+// Local date components, not `.toISOString()` — that converts to UTC first,
+// which silently shifts "today" back a day for IST users in the early-morning
+// hours (confirmed 2026-08-21: this app's users are all IST-based).
+export function toIsoDate(d: Date): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+export function formatDateLabel(iso: string): string {
+  const [year, month, day] = iso.split("-").map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString(undefined, {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
 export function dashIfEmpty(value: string | null | undefined): string {
   return value && value.trim() !== "" ? value : "-";
 }
