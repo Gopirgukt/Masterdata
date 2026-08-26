@@ -18,6 +18,7 @@ type PipelineRow = {
 
 type CompanyDayRow = {
   company: string;
+  recruiter: string;
   assigned: number;
   attempts: number;
   interested: number;
@@ -27,8 +28,8 @@ type CompanyDayRow = {
   Reject: number;
 };
 
-function emptyCompanyDayRow(company: string): CompanyDayRow {
-  return { company, assigned: 0, attempts: 0, interested: 0, P1: 0, P2: 0, Hold: 0, Reject: 0 };
+function emptyCompanyDayRow(company: string, recruiter: string): CompanyDayRow {
+  return { company, recruiter, assigned: 0, attempts: 0, interested: 0, P1: 0, P2: 0, Hold: 0, Reject: 0 };
 }
 
 export default function RecruiterPipelinePage() {
@@ -105,10 +106,12 @@ export default function RecruiterPipelinePage() {
     // and "attempted" are different counts even though both key off call_date.
     if (c.call_date === selectedDate) {
       const companyName = c.companies?.name ?? "Unknown";
-      if (!byCompanyOnSelectedDate.has(companyName)) {
-        byCompanyOnSelectedDate.set(companyName, emptyCompanyDayRow(companyName));
+      const recruiterName = c.recruiter ?? "Unknown";
+      const key = `${companyName}||${recruiterName}`;
+      if (!byCompanyOnSelectedDate.has(key)) {
+        byCompanyOnSelectedDate.set(key, emptyCompanyDayRow(companyName, recruiterName));
       }
-      const companyRow = byCompanyOnSelectedDate.get(companyName)!;
+      const companyRow = byCompanyOnSelectedDate.get(key)!;
       companyRow.assigned++;
       if (c.call_status && c.call_status.trim() !== "") {
         companyRow.attempts++;
@@ -120,7 +123,9 @@ export default function RecruiterPipelinePage() {
   }
 
   const recruiterRows = Array.from(byRecruiter.values()).sort((a, b) => b.calls - a.calls);
-  const companyDayRows = Array.from(byCompanyOnSelectedDate.values()).sort((a, b) => b.attempts - a.attempts);
+  const companyDayRows = Array.from(byCompanyOnSelectedDate.values()).sort(
+    (a, b) => a.company.localeCompare(b.company) || b.attempts - a.attempts,
+  );
   const breakdownToneClass: Record<"P1" | "P2" | "Hold" | "Reject", string> = {
     P1: "text-success",
     P2: "text-success",
@@ -177,6 +182,7 @@ export default function RecruiterPipelinePage() {
             <thead>
               <tr>
                 <Th>Company</Th>
+                <Th>Recruiter</Th>
                 <Th>Assigned</Th>
                 <Th>Attempts</Th>
                 <Th>Interested</Th>
@@ -188,15 +194,16 @@ export default function RecruiterPipelinePage() {
             </thead>
             <tbody>
               {loading ? (
-                <LoadingRow colSpan={8} />
+                <LoadingRow colSpan={9} />
               ) : migrationNeeded ? (
-                <EmptyRow colSpan={8} label="Run the migrations above to see pipeline data" />
+                <EmptyRow colSpan={9} label="Run the migrations above to see pipeline data" />
               ) : companyDayRows.length === 0 ? (
-                <EmptyRow colSpan={8} label="No activity logged for this day" />
+                <EmptyRow colSpan={9} label="No activity logged for this day" />
               ) : (
                 companyDayRows.map((r) => (
-                  <Tr key={r.company}>
+                  <Tr key={`${r.company}||${r.recruiter}`}>
                     <Td className="font-medium">{r.company}</Td>
+                    <Td>{r.recruiter}</Td>
                     <Td>{r.assigned || "-"}</Td>
                     <Td>{r.attempts || "-"}</Td>
                     <Td>{r.interested || "-"}</Td>
