@@ -29,6 +29,7 @@ export default function TodayInterviewsPage() {
   const [activeBucket, setActiveBucket] = useState<Bucket>("today");
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [showCalendar, setShowCalendar] = useState(false);
+  const [showBreakdown, setShowBreakdown] = useState(false);
 
   const today = useMemo(() => toIsoDate(new Date()), []);
   const tomorrow = useMemo(() => {
@@ -167,8 +168,14 @@ export default function TodayInterviewsPage() {
             ))}
           </select>
           <button
-            onClick={() => setShowCalendar((v) => !v)}
+            onClick={() => setShowBreakdown((v) => !v)}
             className="ml-auto rounded-md border border-line-strong bg-surface text-ink-secondary text-sm px-3 py-2 transition-colors hover:border-ink-muted hover:text-ink"
+          >
+            {showBreakdown ? "Hide company breakdown" : "Show company breakdown"}
+          </button>
+          <button
+            onClick={() => setShowCalendar((v) => !v)}
+            className="rounded-md border border-line-strong bg-surface text-ink-secondary text-sm px-3 py-2 transition-colors hover:border-ink-muted hover:text-ink"
           >
             {showCalendar ? "Hide calendar" : "Show calendar"}
           </button>
@@ -185,33 +192,33 @@ export default function TodayInterviewsPage() {
           </div>
         )}
 
-        {!loading && companyBreakdown.size > 0 && (
+        {showBreakdown && !loading && companyBreakdown.size > 0 && (
           <div className="flex flex-col gap-2">
             <div className="text-sm text-ink-secondary">
               {companyBreakdown.size} {companyBreakdown.size === 1 ? "company" : "companies"}
             </div>
-            <div className="flex flex-wrap gap-3">
-              {[...companyBreakdown.entries()].map(([companyName, tally]) => {
-                const parts = (["P1", "P2", "Hold", "Reject"] as const).filter((cat) => tally[cat] > 0);
-                return (
-                  <div
-                    key={companyName}
-                    className="flex items-center gap-2 rounded-md border border-line bg-surface px-3 py-2 text-sm"
-                  >
-                    <span className="font-medium text-ink">{companyName}</span>
-                    {parts.length === 0 ? (
-                      <span className="text-ink-muted">pending</span>
-                    ) : (
-                      parts.map((cat) => (
-                        <span key={cat} className={breakdownToneClass[cat]}>
-                          {cat}-{tally[cat]}
-                        </span>
-                      ))
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+            <Table>
+              <thead>
+                <tr>
+                  <Th>Company</Th>
+                  <Th>P1</Th>
+                  <Th>P2</Th>
+                  <Th>Hold</Th>
+                  <Th>Reject</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...companyBreakdown.entries()].map(([companyName, tally]) => (
+                  <Tr key={companyName}>
+                    <Td className="font-medium">{companyName}</Td>
+                    <Td className={tally.P1 > 0 ? breakdownToneClass.P1 : undefined}>{tally.P1 || "-"}</Td>
+                    <Td className={tally.P2 > 0 ? breakdownToneClass.P2 : undefined}>{tally.P2 || "-"}</Td>
+                    <Td className={tally.Hold > 0 ? breakdownToneClass.Hold : undefined}>{tally.Hold || "-"}</Td>
+                    <Td className={tally.Reject > 0 ? breakdownToneClass.Reject : undefined}>{tally.Reject || "-"}</Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
           </div>
         )}
 
