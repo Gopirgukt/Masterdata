@@ -28,6 +28,7 @@ export default function TodayInterviewsPage() {
   const [loading, setLoading] = useState(true);
   const [activeBucket, setActiveBucket] = useState<Bucket>("today");
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [showCalendar, setShowCalendar] = useState(false);
 
   const today = useMemo(() => toIsoDate(new Date()), []);
   const tomorrow = useMemo(() => {
@@ -165,6 +166,12 @@ export default function TodayInterviewsPage() {
               </option>
             ))}
           </select>
+          <button
+            onClick={() => setShowCalendar((v) => !v)}
+            className="ml-auto rounded-md border border-line-strong bg-surface text-ink-secondary text-sm px-3 py-2 transition-colors hover:border-ink-muted hover:text-ink"
+          >
+            {showCalendar ? "Hide calendar" : "Show calendar"}
+          </button>
         </div>
 
         {selectedDate && (
@@ -240,17 +247,19 @@ export default function TodayInterviewsPage() {
         </Table>
       </div>
 
-      <MiniCalendar
-        view={viewMonth}
-        onViewChange={setViewMonth}
-        countsByDate={countsByDate}
-        selectedDate={selectedDate}
-        todayIso={today}
-        onSelectDate={(date) => {
-          setSelectedDate(date);
-          if (date) setViewMonth(monthOf(date));
-        }}
-      />
+      {showCalendar && (
+        <MiniCalendar
+          view={viewMonth}
+          onViewChange={setViewMonth}
+          countsByDate={countsByDate}
+          selectedDate={selectedDate}
+          todayIso={today}
+          onSelectDate={(date) => {
+            setSelectedDate(date);
+            if (date) setViewMonth(monthOf(date));
+          }}
+        />
+      )}
     </div>
   );
 }

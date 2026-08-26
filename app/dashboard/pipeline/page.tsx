@@ -30,6 +30,7 @@ export default function RecruiterPipelinePage() {
   const today = toIsoDate(new Date());
   const [selectedDate, setSelectedDate] = useState<string>(today);
   const [viewMonth, setViewMonth] = useState<ViewMonth>(() => monthOf(today));
+  const [showCalendar, setShowCalendar] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -122,17 +123,25 @@ export default function RecruiterPipelinePage() {
         <div className="flex flex-1 flex-col gap-3 min-w-0">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-medium text-ink">Companies worked — {formatDateLabel(selectedDate)}</h2>
-            {selectedDate !== today && (
+            <div className="flex items-center gap-3">
+              {selectedDate !== today && (
+                <button
+                  onClick={() => {
+                    setSelectedDate(today);
+                    setViewMonth(monthOf(today));
+                  }}
+                  className="text-sm text-accent hover:underline"
+                >
+                  Back to today
+                </button>
+              )}
               <button
-                onClick={() => {
-                  setSelectedDate(today);
-                  setViewMonth(monthOf(today));
-                }}
-                className="text-sm text-accent hover:underline"
+                onClick={() => setShowCalendar((v) => !v)}
+                className="rounded-md border border-line-strong bg-surface text-ink-secondary text-sm px-3 py-2 transition-colors hover:border-ink-muted hover:text-ink"
               >
-                Back to today
+                {showCalendar ? "Hide calendar" : "Show calendar"}
               </button>
-            )}
+            </div>
           </div>
 
           <Table>
@@ -163,16 +172,18 @@ export default function RecruiterPipelinePage() {
           </Table>
         </div>
 
-        <MiniCalendar
-          view={viewMonth}
-          onViewChange={setViewMonth}
-          countsByDate={callsByDate}
-          selectedDate={selectedDate}
-          todayIso={today}
-          onSelectDate={(date) => {
-            if (date) setSelectedDate(date);
-          }}
-        />
+        {showCalendar && (
+          <MiniCalendar
+            view={viewMonth}
+            onViewChange={setViewMonth}
+            countsByDate={callsByDate}
+            selectedDate={selectedDate}
+            todayIso={today}
+            onSelectDate={(date) => {
+              if (date) setSelectedDate(date);
+            }}
+          />
+        )}
       </div>
 
       <div className="flex flex-col gap-3">
