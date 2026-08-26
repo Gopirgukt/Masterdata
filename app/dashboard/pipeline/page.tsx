@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { formatDateLabel, toIsoDate } from "@/lib/format";
+import { categorizeStatus, formatDateLabel, toIsoDate } from "@/lib/format";
 import { MiniCalendar, monthOf, type ViewMonth } from "@/components/MiniCalendar";
 import { Table, Th, Td, Tr, EmptyRow, LoadingRow } from "@/components/Table";
 import type { CandidateWithCompany } from "@/lib/types";
@@ -18,9 +18,18 @@ type PipelineRow = {
 
 type CompanyDayRow = {
   company: string;
+  assigned: number;
   attempts: number;
   interested: number;
+  P1: number;
+  P2: number;
+  Hold: number;
+  Reject: number;
 };
+
+function emptyCompanyDayRow(company: string): CompanyDayRow {
+  return { company, assigned: 0, attempts: 0, interested: 0, P1: 0, P2: 0, Hold: 0, Reject: 0 };
+}
 
 export default function RecruiterPipelinePage() {
   const [candidates, setCandidates] = useState<CandidateWithCompany[]>([]);
@@ -44,7 +53,9 @@ export default function RecruiterPipelinePage() {
       while (true) {
         const { data, error } = await supabase
           .from("candidates")
-          .select("recruiter, interested, call_date, tech_screening_date, shared_to_company, company_decision, companies(name)")
+          .select(
+            "recruiter, interested, call_date, call_status, tr_status, tech_screening_date, shared_to_company, company_decision, companies(name)",
+          )
           .range(offset, offset + pageSize - 1);
 
         if (error) {
@@ -85,21 +96,37 @@ export default function RecruiterPipelinePage() {
 
     if (c.call_date) {
       callsByDate.set(c.call_date, (callsByDate.get(c.call_date) ?? 0) + 1);
+    }
 
-      if (c.call_date === selectedDate) {
-        const companyName = c.companies?.name ?? "Unknown";
-        if (!byCompanyOnSelectedDate.has(companyName)) {
-          byCompanyOnSelectedDate.set(companyName, { company: companyName, attempts: 0, interested: 0 });
-        }
-        const companyRow = byCompanyOnSelectedDate.get(companyName)!;
+    // Assigned = has a call_date logged for the day (confirmed with the user
+    // 2026-08-26: "Call Date" is what "assigned" means here). Attempts is the
+    // subset of those where Call Status is actually filled in — call_date can
+    // be set before the recruiter has gotten to the candidate, so "assigned"
+    // and "attempted" are different counts even though both key off call_date.
+    if (c.call_date === selectedDate) {
+      const companyName = c.companies?.name ?? "Unknown";
+      if (!byCompanyOnSelectedDate.has(companyName)) {
+        byCompanyOnSelectedDate.set(companyName, emptyCompanyDayRow(companyName));
+      }
+      const companyRow = byCompanyOnSelectedDate.get(companyName)!;
+      companyRow.assigned++;
+      if (c.call_status && c.call_status.trim() !== "") {
         companyRow.attempts++;
         if (c.interested) companyRow.interested++;
+        const category = categorizeStatus(c.tr_status);
+        if (category !== "Other") companyRow[category]++;
       }
     }
   }
 
   const recruiterRows = Array.from(byRecruiter.values()).sort((a, b) => b.calls - a.calls);
   const companyDayRows = Array.from(byCompanyOnSelectedDate.values()).sort((a, b) => b.attempts - a.attempts);
+  const breakdownToneClass: Record<"P1" | "P2" | "Hold" | "Reject", string> = {
+    P1: "text-success",
+    P2: "text-success",
+    Hold: "text-accent",
+    Reject: "text-danger",
+  };
 
   return (
     <div className="flex flex-col gap-8">
@@ -110,11 +137,13 @@ export default function RecruiterPipelinePage() {
             <path d="M10 8v3.5M10 14.2v.3" />
           </svg>
           <div>
-            This view needs the <code className="text-ink-secondary">recruiter</code> and{" "}
-            <code className="text-ink-secondary">interested</code> columns on{" "}
-            <code className="text-ink-secondary">candidates</code>, which aren&apos;t in the database yet. Run{" "}
-            <code className="text-ink-secondary">migrations/001_recruiter_pipeline.sql</code> in the Supabase SQL
-            editor, then reload this page.
+            This view needs the <code className="text-ink-secondary">recruiter</code>,{" "}
+            <code className="text-ink-secondary">interested</code>, and{" "}
+            <code className="text-ink-secondary">call_status</code> columns on{" "}
+            <code className="text-ink-secondary">candidates</code>, which aren&apos;t all in the database yet. Run{" "}
+            <code className="text-ink-secondary">migrations/001_recruiter_pipeline.sql</code> and{" "}
+            <code className="text-ink-secondary">migrations/009_call_status.sql</code> in the Supabase SQL editor,
+            then reload this page.
           </div>
         </div>
       )}
@@ -148,23 +177,33 @@ export default function RecruiterPipelinePage() {
             <thead>
               <tr>
                 <Th>Company</Th>
+                <Th>Assigned</Th>
                 <Th>Attempts</Th>
                 <Th>Interested</Th>
+                <Th>P1</Th>
+                <Th>P2</Th>
+                <Th>Hold</Th>
+                <Th>Reject</Th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <LoadingRow colSpan={3} />
+                <LoadingRow colSpan={8} />
               ) : migrationNeeded ? (
-                <EmptyRow colSpan={3} label="Run the migration above to see pipeline data" />
+                <EmptyRow colSpan={8} label="Run the migrations above to see pipeline data" />
               ) : companyDayRows.length === 0 ? (
-                <EmptyRow colSpan={3} label="No calls logged for this day" />
+                <EmptyRow colSpan={8} label="No activity logged for this day" />
               ) : (
                 companyDayRows.map((r) => (
                   <Tr key={r.company}>
                     <Td className="font-medium">{r.company}</Td>
-                    <Td>{r.attempts}</Td>
-                    <Td>{r.interested}</Td>
+                    <Td>{r.assigned || "-"}</Td>
+                    <Td>{r.attempts || "-"}</Td>
+                    <Td>{r.interested || "-"}</Td>
+                    <Td className={r.P1 > 0 ? breakdownToneClass.P1 : undefined}>{r.P1 || "-"}</Td>
+                    <Td className={r.P2 > 0 ? breakdownToneClass.P2 : undefined}>{r.P2 || "-"}</Td>
+                    <Td className={r.Hold > 0 ? breakdownToneClass.Hold : undefined}>{r.Hold || "-"}</Td>
+                    <Td className={r.Reject > 0 ? breakdownToneClass.Reject : undefined}>{r.Reject || "-"}</Td>
                   </Tr>
                 ))
               )}

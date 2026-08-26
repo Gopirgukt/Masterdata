@@ -41,6 +41,10 @@ export type Candidate = {
   // Added by migrations/001_recruiter_pipeline.sql — absent until that migration runs.
   recruiter: string | null;
   interested: boolean | null;
+  // Added by migrations/008_sourced_date.sql — absent until that migration runs.
+  sourced_date: string | null;
+  // Added by migrations/009_call_status.sql — absent until that migration runs.
+  call_status: string | null;
 };
 
 export type CandidateWithCompany = Candidate & {

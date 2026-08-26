@@ -8,8 +8,10 @@ import { canonicalizeName } from "@/lib/sync/nameCanon";
 const HEADER_MAP = {
   name: "Name",
   phone: "Mobile Number",
+  sourcedDate: "Date of Sourcing",
   callDoneBy: "Call Done By",
   callDate: "Call Date",
+  callStatus: "Call Status",
   areTheyInterested: "Are they Interested",
   jobRole: "Job Role",
   trSkills: "Skills good at (Technical Recruiter)",
@@ -230,6 +232,7 @@ export function mapSheetRow(row: string[], headers: string[], companyName?: stri
   if (!name) return null;
 
   const callDate = parseSheetDate(cell(row, index, "callDate"));
+  const sourcedDate = parseSheetDate(cell(row, index, "sourcedDate"));
   const techScreeningDate = parseSheetDate(cell(row, index, "techScreeningDate"));
   const techScreeningTime = cell(row, index, "techScreeningTime") || null;
   const callDoneBy = canonicalizeName(cell(row, index, "callDoneBy"));
@@ -239,7 +242,9 @@ export function mapSheetRow(row: string[], headers: string[], companyName?: stri
     phone: cell(row, index, "phone") || null,
     job_role: cell(row, index, "jobRole") || null,
     call_done_by: callDoneBy,
+    call_status: cell(row, index, "callStatus") || null,
     call_date: callDate,
+    sourced_date: sourcedDate,
     tr_status: cell(row, index, "trStatus") || null,
     tr_tech_rating: cell(row, index, "trRatingTech") || null,
     tr_comm_rating: cell(row, index, "trRatingComm") || null,
