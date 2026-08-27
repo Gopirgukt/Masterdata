@@ -51,15 +51,32 @@ export default function CompanySheetPage() {
     ) as string[];
   }
 
-  const filtered = candidates.filter((c) => {
-    if (companyId && c.company_id !== companyId) return false;
+  const hasAnyRoundData = (c: CandidateWithCompany) => {
     const record = c as unknown as Record<string, string | null>;
-    for (const { key } of ROUND_FIELDS) {
-      const wanted = roundFilters[key];
-      if (wanted && record[key] !== wanted) return false;
-    }
-    return true;
-  });
+    return ROUND_FIELDS.some(({ key }) => !!record[key]);
+  };
+
+  // Only a handful of companies track this funnel at all (confirmed
+  // 2026-08-27) — most shared candidates will have every round blank, not
+  // because of a bug but because that company's sheet never had these
+  // columns. Sorting rows with data first (rather than default/insertion
+  // order) means the page actually shows something useful without the
+  // company filter, instead of 30 blank rows from an untracked company.
+  const filtered = candidates
+    .filter((c) => {
+      if (companyId && c.company_id !== companyId) return false;
+      const record = c as unknown as Record<string, string | null>;
+      for (const { key } of ROUND_FIELDS) {
+        const wanted = roundFilters[key];
+        if (wanted && record[key] !== wanted) return false;
+      }
+      return true;
+    })
+    .sort((a, b) => Number(hasAnyRoundData(b)) - Number(hasAnyRoundData(a)));
+
+  const companiesWithRoundData = Array.from(
+    new Set(candidates.filter(hasAnyRoundData).map((c) => c.companies?.name).filter(Boolean)),
+  ) as string[];
 
   const filterKey = `${companyId}|${JSON.stringify(roundFilters)}`;
   const { visible, showMore, total, visibleCount } = usePagedReveal(filtered, 30, filterKey);
@@ -78,6 +95,13 @@ export default function CompanySheetPage() {
           />
         ))}
       </div>
+
+      {!loading && companiesWithRoundData.length > 0 && (
+        <div className="rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink-secondary">
+          Only these companies track Screening/TR1/TR2/HR-MR/Hired status in their sheet — everyone else shows
+          blank here, which is expected: <span className="text-ink">{companiesWithRoundData.join(", ")}</span>.
+        </div>
+      )}
 
       <div className="text-sm text-ink-secondary">
         Showing {visibleCount} of {total} shared candidates
