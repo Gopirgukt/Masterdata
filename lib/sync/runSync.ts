@@ -216,22 +216,38 @@ export async function syncAllCompanies(): Promise<CompanySyncResult[]> {
     company.sheet_id ? isRecentlyActive(company.sheet_id) : Promise.resolve(true),
   );
 
-  const results: CompanySyncResult[] = [];
+  // The actual per-company syncs used to run one at a time in a plain loop —
+  // fine when most were skipped as inactive, but a company can involve
+  // hundreds of sequential per-row DB writes, and running them one company
+  // after another was pushing total wall-clock time past Vercel's 60s hard
+  // cap (confirmed 2026-08-27: a run got killed mid-sync with 0 companies
+  // recorded, even with after() keeping it running in the background —
+  // after() doesn't grant extra time beyond maxDuration, it just lets the
+  // response return early). Concurrency is deliberately modest (not the same
+  // 10 used for the lightweight activity check) since each of these makes
+  // real Sheets API reads and Supabase writes, not just a metadata call.
+  const results: CompanySyncResult[] = new Array(companyList.length);
+  const toSync: { company: Company; index: number }[] = [];
   for (let i = 0; i < companyList.length; i++) {
     const company = companyList[i];
     if (company.sheet_id && !activeFlags[i]) {
-      results.push({
+      results[i] = {
         company: company.name,
         inserted: 0,
         updated: 0,
         unchanged: 0,
         skippedNoName: 0,
         skippedInactive: true,
-      });
-      continue;
+      };
+    } else {
+      toSync.push({ company, index: i });
     }
-    results.push(await syncCompany(company));
   }
+
+  const syncedResults = await mapWithConcurrency(toSync, 4, ({ company }) => syncCompany(company));
+  toSync.forEach(({ index }, j) => {
+    results[index] = syncedResults[j];
+  });
 
   if (run) {
     const errors = results.filter((r) => r.error);
