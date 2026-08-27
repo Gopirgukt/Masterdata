@@ -1,11 +1,9 @@
 "use client";
 
 import { formatDistanceToNow } from "date-fns";
-import { useLastSync } from "@/lib/useLastSync";
+import type { LastSyncInfo } from "@/lib/useLastSync";
 
-export function LastSynced() {
-  const { info, loading } = useLastSync();
-
+export function LastSynced({ info, loading }: { info: LastSyncInfo | null; loading: boolean }) {
   if (loading) return null;
 
   if (!info?.finishedAt) {

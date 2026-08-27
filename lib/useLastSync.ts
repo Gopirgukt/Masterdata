@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 export type LastSyncInfo = {
@@ -12,20 +12,23 @@ export function useLastSync() {
   const [info, setInfo] = useState<LastSyncInfo | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const refetch = useCallback(async () => {
     const supabase = createClient();
-    supabase
+    const { data } = await supabase
       .from("sync_runs")
       .select("finished_at, total_errors")
       .not("finished_at", "is", null)
       .order("finished_at", { ascending: false })
-      .limit(1)
-      .then(({ data }) => {
-        const row = data?.[0];
-        setInfo(row ? { finishedAt: row.finished_at, totalErrors: row.total_errors } : null);
-        setLoading(false);
-      });
+      .limit(1);
+    const row = data?.[0];
+    const next = row ? { finishedAt: row.finished_at, totalErrors: row.total_errors } : null;
+    setInfo(next);
+    return next;
   }, []);
 
-  return { info, loading };
+  useEffect(() => {
+    refetch().finally(() => setLoading(false));
+  }, [refetch]);
+
+  return { info, loading, refetch };
 }
