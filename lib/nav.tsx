@@ -115,4 +115,14 @@ export const NAV_ITEMS = [
       </Icon>
     ),
   },
+  {
+    href: "/dashboard/company-sheet",
+    label: "Company Sheet",
+    icon: (
+      <Icon>
+        <rect x="4" y="2.5" width="12" height="15" rx="1.5" />
+        <path d="M7 6.5h6M7 9.5h6M7 12.5h3.5" />
+      </Icon>
+    ),
+  },
 ];
