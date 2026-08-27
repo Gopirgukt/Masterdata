@@ -1,11 +1,12 @@
-name: Hourly Google Sheets sync
+name: Hourly Google Sheets sync (manual)
 
+# The `schedule` trigger was removed 2026-08-27 — GitHub Actions' own docs
+# acknowledge scheduled workflows "can be delayed... in some cases may not
+# run" during high load, and ours confirmed that in practice (stopped firing
+# for 12+ hours despite being correctly configured). cron-job.org is now the
+# actual hourly trigger; this workflow stays for manual runs via the Actions
+# tab (or `gh workflow run`) when you want to sync on demand.
 on:
-  schedule:
-    # Every hour, minute 30, hours 2-14 UTC = 8:00am-8:00pm IST, Mon-Sat
-    # (day-of-week 1-6; GitHub Actions cron runs in UTC, and this window
-    # never crosses a UTC/IST day boundary so 1-6 UTC = 1-6 IST here).
-    - cron: "30 2-14 * * 1-6"
   workflow_dispatch: {}
 
 jobs:
@@ -14,18 +15,9 @@ jobs:
     steps:
       - name: Call /api/sync
         run: |
-          # A cold Vercel function start can push the real sync work past the
-          # platform's hard 60s limit (confirmed 2026-08-25: one run never
-          # finished server-side; retrying immediately after hit an
-          # already-warm container and finished in 36s) — retry a couple of
-          # times before giving up.
-          for attempt in 1 2 3; do
-            if curl --fail --show-error --silent \
-              -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-              "${{ secrets.SYNC_URL }}"; then
-              exit 0
-            fi
-            echo "Attempt $attempt failed, retrying in 10s..."
-            sleep 10
-          done
-          exit 1
+          # /api/sync now responds immediately (202) and keeps the actual
+          # sync running in the background via Next.js's after() — a single
+          # call is enough, no retry needed for a slow response.
+          curl --fail --show-error --silent \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.SYNC_URL }}"
