@@ -28,6 +28,11 @@ const HEADER_MAP = {
   techStatus: "Tech Team Screening Status",
   sharedToCompany: "Shared with the company",
   recordingLink: "Interview Recording links",
+  screeningStatus: "Screening Status",
+  tr1Status: "TR 1 Status",
+  tr2Status: "TR 2 Status",
+  hrMrStatus: "HR/MR Status",
+  hiredStatus: "Hired Status",
 } as const;
 
 type FieldKey = keyof typeof HEADER_MAP;
@@ -261,5 +266,10 @@ export function mapSheetRow(row: string[], headers: string[], companyName?: stri
     tech_screening_time: techScreeningTime,
     recruiter: callDoneBy,
     interested: parseInterested(cell(row, index, "areTheyInterested")),
+    screening_status: cell(row, index, "screeningStatus") || null,
+    tr1_status: cell(row, index, "tr1Status") || null,
+    tr2_status: cell(row, index, "tr2Status") || null,
+    hr_mr_status: cell(row, index, "hrMrStatus") || null,
+    hired_status: cell(row, index, "hiredStatus") || null,
   };
 }

@@ -45,6 +45,12 @@ export type Candidate = {
   sourced_date: string | null;
   // Added by migrations/009_call_status.sql — absent until that migration runs.
   call_status: string | null;
+  // Added by migrations/010_pipeline_stages.sql — absent until that migration runs.
+  screening_status: string | null;
+  tr1_status: string | null;
+  tr2_status: string | null;
+  hr_mr_status: string | null;
+  hired_status: string | null;
 };
 
 export type CandidateWithCompany = Candidate & {
