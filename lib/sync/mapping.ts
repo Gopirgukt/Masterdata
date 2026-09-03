@@ -57,14 +57,16 @@ function cell(row: string[], index: Partial<Record<FieldKey, number>>, key: Fiel
 }
 
 // Sheet-specific header quirks — some companies' header row is broken in a way
-// no amount of name-matching can recover (confirmed 2026-08-24: Honebi's "JD_1"
-// tab has no "Name" header anywhere in row 1 — column A is unused/blank and
-// column B holds the candidate's name under a header that literally reads "Call
-// Done" instead). Every other column in that sheet lines up with its header
-// correctly, so this only overrides the name column lookup, by company name
-// (case-insensitive, matches companies.name).
+// no amount of name-matching can recover (confirmed 2026-08-24: this
+// company's "JD_1" tab has no "Name" header anywhere in row 1 — column A is
+// unused/blank and column B holds the candidate's name under a header that
+// literally reads "Call Done" instead). Every other column in that sheet
+// lines up with its header correctly, so this only overrides the name column
+// lookup, by company name (case-insensitive, matches companies.name).
+// Company was renamed "Honebi" -> "Headstart" 2026-09-03 (same sheet,
+// confirmed by matching sheet_id) — keyed on the current name.
 const NAME_COLUMN_OVERRIDE_BY_COMPANY: Record<string, number> = {
-  honebi: 1,
+  headstart: 1,
 };
 
 // NMT Security's "JD_1" tab has the Tech Screening column block (Date/Time/
