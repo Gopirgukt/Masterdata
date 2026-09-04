@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { categorizeStatus, formatDateLabel, toIsoDate } from "@/lib/format";
+import { useSyncVersion } from "@/lib/useSyncVersion";
 import { MiniCalendar, monthOf, type ViewMonth } from "@/components/MiniCalendar";
 import { Table, Th, Td, Tr, EmptyRow, LoadingRow } from "@/components/Table";
 import type { CandidateWithCompany } from "@/lib/types";
@@ -41,6 +42,7 @@ export default function RecruiterPipelinePage() {
   const [selectedDate, setSelectedDate] = useState<string>(today);
   const [viewMonth, setViewMonth] = useState<ViewMonth>(() => monthOf(today));
   const [showCalendar, setShowCalendar] = useState(false);
+  const syncVersion = useSyncVersion();
 
   useEffect(() => {
     const supabase = createClient();
@@ -75,7 +77,7 @@ export default function RecruiterPipelinePage() {
     }
 
     loadAll();
-  }, []);
+  }, [syncVersion]);
 
   const byRecruiter = new Map<string, PipelineRow>();
   const callsByDate = new Map<string, number>();

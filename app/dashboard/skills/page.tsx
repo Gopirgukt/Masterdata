@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { splitSkills } from "@/lib/format";
 import { fetchAllRows } from "@/lib/fetchAllRows";
+import { useSyncVersion } from "@/lib/useSyncVersion";
 import { BarChartCard } from "@/components/BarChartCard";
 import { LoadingState } from "@/components/Loader";
 import type { Candidate } from "@/lib/types";
@@ -11,6 +12,7 @@ import type { Candidate } from "@/lib/types";
 export default function SkillsAnalyticsPage() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [loading, setLoading] = useState(true);
+  const syncVersion = useSyncVersion();
 
   useEffect(() => {
     const supabase = createClient();
@@ -21,7 +23,7 @@ export default function SkillsAnalyticsPage() {
         setLoading(false);
       },
     );
-  }, []);
+  }, [syncVersion]);
 
   const counts = new Map<string, number>();
   for (const c of candidates) {

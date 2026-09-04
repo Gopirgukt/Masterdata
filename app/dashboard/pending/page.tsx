@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { fetchAllRows } from "@/lib/fetchAllRows";
+import { useSyncVersion } from "@/lib/useSyncVersion";
 import { Table, Th, Td, Tr, EmptyRow, LoadingRow } from "@/components/Table";
 import { Badge } from "@/components/Badge";
 import type { CandidateWithCompany } from "@/lib/types";
@@ -17,6 +18,7 @@ const BLOCKED_ON_TONE = {
 export default function PendingActionsPage() {
   const [rows, setRows] = useState<PendingRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const syncVersion = useSyncVersion();
 
   useEffect(() => {
     const supabase = createClient();
@@ -36,7 +38,7 @@ export default function PendingActionsPage() {
       setRows(pending);
       setLoading(false);
     });
-  }, []);
+  }, [syncVersion]);
 
   return (
     <div className="flex flex-col gap-6">

@@ -9,6 +9,7 @@ import { useDistinctValues } from "@/lib/useDistinctValues";
 import { dashIfEmpty, recordingHref, statusToneClass } from "@/lib/format";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { usePagedReveal } from "@/lib/usePagedReveal";
+import { useSyncVersion } from "@/lib/useSyncVersion";
 import { Table, Th, Td, Tr, EmptyRow, LoadingRow } from "@/components/Table";
 import { Badge } from "@/components/Badge";
 import { SearchInput } from "@/components/SearchInput";
@@ -35,6 +36,7 @@ function CandidateSearchInner() {
   const [rows, setRows] = useState<CandidateWithCompany[]>([]);
   const [loading, setLoading] = useState(true);
   const [remarksOnly, setRemarksOnly] = useState(false);
+  const syncVersion = useSyncVersion();
 
   useEffect(() => {
     const supabase = createClient();
@@ -69,7 +71,7 @@ function CandidateSearchInner() {
       cancelled = true;
       clearTimeout(timeout);
     };
-  }, [search, companyId, callDoneBy, callDate, trStatus, techScreeningTakenBy, techStatus]);
+  }, [search, companyId, callDoneBy, callDate, trStatus, techScreeningTakenBy, techStatus, syncVersion]);
 
   const filteredRows = remarksOnly ? rows.filter((r) => (r.tech_remarks ?? "").trim() !== "") : rows;
   const { visible, showMore, visibleCount, total } = usePagedReveal(

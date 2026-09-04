@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useSyncVersion } from "@/lib/useSyncVersion";
 
 const PAGE_SIZE = 1000;
 
@@ -13,6 +14,7 @@ const PAGE_SIZE = 1000;
  * the candidates table passed that size (confirmed 2026-08-13). */
 export function useDistinctValues(column: string) {
   const [values, setValues] = useState<string[]>([]);
+  const syncVersion = useSyncVersion();
 
   useEffect(() => {
     let cancelled = false;
@@ -48,7 +50,7 @@ export function useDistinctValues(column: string) {
     return () => {
       cancelled = true;
     };
-  }, [column]);
+  }, [column, syncVersion]);
 
   return values;
 }

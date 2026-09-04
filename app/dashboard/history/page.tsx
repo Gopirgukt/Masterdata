@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { yesNo, dashIfEmpty, statusToneClass } from "@/lib/format";
 import { fetchAllRows } from "@/lib/fetchAllRows";
+import { useSyncVersion } from "@/lib/useSyncVersion";
 import { SearchInput } from "@/components/SearchInput";
 import { LoadingState } from "@/components/Loader";
 import type { CandidateWithCompany } from "@/lib/types";
@@ -18,6 +19,7 @@ function CandidateHistoryInner() {
   const [selected, setSelected] = useState<PersonSummary | null>(null);
   const [timelineRows, setTimelineRows] = useState<CandidateWithCompany[]>([]);
   const [loading, setLoading] = useState(false);
+  const syncVersion = useSyncVersion();
 
   useEffect(() => {
     if (search.trim() === "") {
@@ -42,7 +44,7 @@ function CandidateHistoryInner() {
       });
     }, 250);
     return () => clearTimeout(timeout);
-  }, [search]);
+  }, [search, syncVersion]);
 
   useEffect(() => {
     if (!selected) {
@@ -57,7 +59,7 @@ function CandidateHistoryInner() {
       setTimelineRows((data as unknown as CandidateWithCompany[]) ?? []);
       setLoading(false);
     });
-  }, [selected]);
+  }, [selected, syncVersion]);
 
   const trEntry = timelineRows[0];
 

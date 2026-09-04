@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useCompanies } from "@/lib/useCompanies";
 import { fetchAllRows } from "@/lib/fetchAllRows";
+import { useSyncVersion } from "@/lib/useSyncVersion";
 import { Table, Th, Td, Tr, EmptyRow, LoadingRow } from "@/components/Table";
 import { AccessIssuesBanner } from "@/components/AccessIssuesBanner";
 import { StatTile } from "@/components/StatTile";
@@ -51,6 +52,7 @@ export default function CompanyAnalyticsPage() {
   const [tr1Filter, setTr1Filter] = useState("");
   const [tr2Filter, setTr2Filter] = useState("");
   const [hrMrFilter, setHrMrFilter] = useState("");
+  const syncVersion = useSyncVersion();
 
   useEffect(() => {
     const supabase = createClient();
@@ -64,7 +66,7 @@ export default function CompanyAnalyticsPage() {
       setCandidates(data);
       setLoading(false);
     });
-  }, []);
+  }, [syncVersion]);
 
   const tr1Options = Array.from(new Set(candidates.map((c) => c.tr1_status).filter(Boolean))) as string[];
   const tr2Options = Array.from(new Set(candidates.map((c) => c.tr2_status).filter(Boolean))) as string[];

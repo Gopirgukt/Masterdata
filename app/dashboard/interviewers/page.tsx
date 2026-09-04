@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { computeRange, type DateRangePreset } from "@/lib/dateRange";
 import { fetchAllRows } from "@/lib/fetchAllRows";
+import { useSyncVersion } from "@/lib/useSyncVersion";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { Table, Th, Td, Tr, EmptyRow, LoadingRow } from "@/components/Table";
 import type { Candidate } from "@/lib/types";
@@ -23,6 +24,7 @@ export default function InterviewerReportPage() {
   const [customEnd, setCustomEnd] = useState("");
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [loading, setLoading] = useState(true);
+  const syncVersion = useSyncVersion();
 
   useEffect(() => {
     const range = computeRange(preset, customStart, customEnd);
@@ -46,7 +48,7 @@ export default function InterviewerReportPage() {
     return () => {
       cancelled = true;
     };
-  }, [preset, customStart, customEnd]);
+  }, [preset, customStart, customEnd, syncVersion]);
 
   const byInterviewer = new Map<string, InterviewerRow>();
   for (const c of candidates) {

@@ -13,6 +13,7 @@ import {
   toIsoDate,
 } from "@/lib/format";
 import { fetchAllRows } from "@/lib/fetchAllRows";
+import { useSyncVersion } from "@/lib/useSyncVersion";
 import { CompanyFilter } from "@/components/CompanyFilter";
 import { MiniCalendar, monthOf, type ViewMonth } from "@/components/MiniCalendar";
 import { Table, Th, Td, Tr, EmptyRow, LoadingRow } from "@/components/Table";
@@ -30,6 +31,7 @@ export default function TodayInterviewsPage() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [showCalendar, setShowCalendar] = useState(false);
   const [showBreakdown, setShowBreakdown] = useState(false);
+  const syncVersion = useSyncVersion();
 
   const today = useMemo(() => toIsoDate(new Date()), []);
   const tomorrow = useMemo(() => {
@@ -68,7 +70,7 @@ export default function TodayInterviewsPage() {
     return () => {
       cancelled = true;
     };
-  }, [companyId, interviewer]);
+  }, [companyId, interviewer, syncVersion]);
 
   const bucketOf = (dateStr: string | null): Bucket | null => {
     if (!dateStr) return null;

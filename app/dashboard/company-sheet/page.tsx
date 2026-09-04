@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useCompanies } from "@/lib/useCompanies";
 import { fetchAllRows } from "@/lib/fetchAllRows";
+import { useSyncVersion } from "@/lib/useSyncVersion";
 import { dashIfEmpty, statusToneClass } from "@/lib/format";
 import { CompanyFilter } from "@/components/CompanyFilter";
 import { SelectFilter } from "@/components/SelectFilter";
@@ -26,6 +27,7 @@ export default function CompanySheetPage() {
   const [loading, setLoading] = useState(true);
   const [companyId, setCompanyId] = useState("");
   const [roundFilters, setRoundFilters] = useState<Record<string, string>>({});
+  const syncVersion = useSyncVersion();
 
   useEffect(() => {
     const supabase = createClient();
@@ -42,7 +44,7 @@ export default function CompanySheetPage() {
       setCandidates(data);
       setLoading(false);
     });
-  }, []);
+  }, [syncVersion]);
 
   const roundOptions: Record<string, string[]> = {};
   for (const { key } of ROUND_FIELDS) {

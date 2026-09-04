@@ -7,6 +7,7 @@ import { useCompanies } from "@/lib/useCompanies";
 import { computeRange, type DateRangePreset } from "@/lib/dateRange";
 import { dashIfEmpty, statusToneClass } from "@/lib/format";
 import { fetchAllRows } from "@/lib/fetchAllRows";
+import { useSyncVersion } from "@/lib/useSyncVersion";
 import { CompanyFilter } from "@/components/CompanyFilter";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { StatTile } from "@/components/StatTile";
@@ -27,6 +28,7 @@ export default function OverviewPage() {
   const [rows, setRows] = useState<CandidateWithCompany[]>([]);
   const [loading, setLoading] = useState(true);
   const [statFilter, setStatFilter] = useState<StatFilter>("all");
+  const syncVersion = useSyncVersion();
 
   useEffect(() => {
     const range = computeRange(preset, customStart, customEnd);
@@ -54,7 +56,7 @@ export default function OverviewPage() {
     return () => {
       cancelled = true;
     };
-  }, [companyId, preset, customStart, customEnd]);
+  }, [companyId, preset, customStart, customEnd, syncVersion]);
 
   const candidatesAdded = rows.length;
   const techScreenedRows = rows.filter((r) => r.tech_status != null && r.tech_status !== "");
