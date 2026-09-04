@@ -8,6 +8,12 @@ export type LastSyncInfo = {
   totalErrors: number;
 };
 
+// Same cadence as useSyncVersion — keeps the header's "Updated X ago" text
+// live on its own (both catching a newly-finished sync and just refreshing
+// the relative-time wording as real time passes), instead of only updating
+// when the "Sync now" button's own tighter polling loop calls refetch().
+const POLL_INTERVAL_MS = 20_000;
+
 export function useLastSync() {
   const [info, setInfo] = useState<LastSyncInfo | null>(null);
   const [loading, setLoading] = useState(true);
@@ -28,6 +34,8 @@ export function useLastSync() {
 
   useEffect(() => {
     refetch().finally(() => setLoading(false));
+    const interval = setInterval(refetch, POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
   }, [refetch]);
 
   return { info, loading, refetch };
