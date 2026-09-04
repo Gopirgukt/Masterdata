@@ -96,16 +96,32 @@ export default function DayOutcomePage() {
       byCompany.set(companyName, { company: companyName, completed: 0, P1: 0, P2: 0, Hold: 0, Reject: 0 });
     }
     const tally = byCompany.get(companyName)!;
-    tally.completed++;
+    // "Completed" = has an actual outcome (P1/P2/Hold/Reject), not just
+    // scheduled/assigned — a row with no tech_status yet is still pending,
+    // not completed, even though it's on the calendar for today (confirmed
+    // with the user 2026-09-04).
     const category = categorizeStatus(c.tech_status);
-    if (category !== "Other") tally[category]++;
+    if (category !== "Other") {
+      tally.completed++;
+      tally[category]++;
+    }
   }
   const interviewerGroups: InterviewerGroup[] = Array.from(interviewerMap.entries())
-    .map(([interviewer, byCompany]) => ({
-      interviewer,
-      total: Array.from(byCompany.values()).reduce((sum, t) => sum + t.completed, 0),
-      companies: Array.from(byCompany.values()).sort((a, b) => b.completed - a.completed),
-    }))
+    .map(([interviewer, byCompany]) => {
+      // Only companies with at least one actual completed outcome — a
+      // company where every interview that day is still pending shouldn't
+      // count toward "across N companies" once "completed" means P1/P2/
+      // Hold/Reject rather than just scheduled.
+      const companies = Array.from(byCompany.values())
+        .filter((t) => t.completed > 0)
+        .sort((a, b) => b.completed - a.completed);
+      return {
+        interviewer,
+        total: companies.reduce((sum, t) => sum + t.completed, 0),
+        companies,
+      };
+    })
+    .filter((group) => group.companies.length > 0)
     .sort((a, b) => b.total - a.total);
 
   const callsToday = candidates.filter((c) => c.call_date === selectedDate && c.recruiter);
