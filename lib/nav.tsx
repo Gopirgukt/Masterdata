@@ -125,4 +125,14 @@ export const NAV_ITEMS = [
       </Icon>
     ),
   },
+  {
+    href: "/dashboard/day-outcome",
+    label: "Day Outcome",
+    icon: (
+      <Icon>
+        <circle cx="10" cy="10" r="7.5" />
+        <path d="M10 5.5v5l3.5 2" />
+      </Icon>
+    ),
+  },
 ];
