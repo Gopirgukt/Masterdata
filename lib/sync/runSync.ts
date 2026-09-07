@@ -107,7 +107,7 @@ export async function syncCompany(company: Company): Promise<CompanySyncResult> 
     }
 
     for (const row of rows) {
-      const mapped = mapSheetRow(row, headers, company.name);
+      const mapped = mapSheetRow(row, headers, company.name, tab);
       if (!mapped) {
         result.skippedNoName++;
         continue;

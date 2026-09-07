@@ -81,6 +81,20 @@ const PREFER_LAST_HEADER_OCCURRENCE_BY_COMPANY: Record<string, FieldKey[]> = {
   "nmt security": ["techScreeningDate", "techScreeningTime", "techScreeningTakenBy"],
 };
 
+// Freedom with AI's "Frontend_AI engineer" tab (confirmed 2026-09-07) has its
+// data shifted one column left of the header row from "Rating on
+// Communication (Tech Team)" onward: that header's column actually holds the
+// Tech Team's written remarks, "Other Remarks (Tech Team)"'s column actually
+// holds the Selected/Hold/Rejected outcome, and the real "Tech Team
+// Screening Status" column is blank. Only techStatus is remapped (to read
+// from techRemarks' position) — the highest-impact fix, since the outcome
+// status drives every other page's P1/P2/Hold/Reject counts. Scoped to this
+// one (company, tab) pair — Freedom with AI's three other, older tabs are
+// correctly aligned and must not be touched.
+const FIELD_COLUMN_OVERRIDE_BY_COMPANY_TAB: Record<string, Partial<Record<FieldKey, FieldKey>>> = {
+  "freedom with ai||frontend_ai engineer": { techStatus: "techRemarks" },
+};
+
 const MONTH_NAMES: Record<string, string> = {
   january: "01",
   jan: "01",
@@ -231,10 +245,24 @@ export type MappedCandidateRow = Partial<Candidate> & { name: string };
  *   (confirmed with the user 2026-08-13) — the same person shows up as "Gopi",
  *   "Gopichand", "gopichand" etc. across different companies' sheets.
  */
-export function mapSheetRow(row: string[], headers: string[], companyName?: string): MappedCandidateRow | null {
+export function mapSheetRow(
+  row: string[],
+  headers: string[],
+  companyName?: string,
+  tabName?: string,
+): MappedCandidateRow | null {
   const companyKey = companyName?.trim().toLowerCase();
   const preferLastFor = new Set(companyKey ? (PREFER_LAST_HEADER_OCCURRENCE_BY_COMPANY[companyKey] ?? []) : []);
   const index = buildHeaderIndex(headers, preferLastFor);
+
+  const companyTabKey = companyKey && tabName ? `${companyKey}||${tabName.trim().toLowerCase()}` : undefined;
+  const columnOverrides = companyTabKey ? FIELD_COLUMN_OVERRIDE_BY_COMPANY_TAB[companyTabKey] : undefined;
+  if (columnOverrides) {
+    for (const [target, source] of Object.entries(columnOverrides) as [FieldKey, FieldKey][]) {
+      if (index[source] !== undefined) index[target] = index[source];
+    }
+  }
+
   const nameOverride = companyKey ? NAME_COLUMN_OVERRIDE_BY_COMPANY[companyKey] : undefined;
   const name = nameOverride !== undefined ? (row[nameOverride] ?? "").trim() : cell(row, index, "name");
   if (!name) return null;
