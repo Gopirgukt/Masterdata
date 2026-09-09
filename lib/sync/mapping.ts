@@ -226,6 +226,24 @@ function parseSharedToCompany(raw: string): boolean {
   return raw.trim().toLowerCase() === "yes";
 }
 
+/** Rejects Google Sheets/Excel formula-error text ("#ERROR!", "#N/A", "#REF!",
+ * ...) and anything with no digits at all. Confirmed in the wild (2026-09-09,
+ * Tofler): a broken formula in the "Mobile Number" column evaluates to the
+ * literal text "#ERROR!" for multiple different candidates. Sync matches
+ * existing candidates by phone when phone is present, so treating that literal
+ * text as a real phone number made unrelated candidates collide — a new
+ * candidate sharing the same bogus "phone" as an existing one got written as
+ * an *update* to that existing row instead of an insert, silently overwriting
+ * one candidate's data with another's and dropping the new one entirely.
+ */
+function parsePhone(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith("#")) return null;
+  if (!/\d/.test(trimmed)) return null;
+  return trimmed;
+}
+
 export type MappedCandidateRow = Partial<Candidate> & { name: string };
 
 /**
@@ -275,7 +293,7 @@ export function mapSheetRow(
 
   return {
     name,
-    phone: cell(row, index, "phone") || null,
+    phone: parsePhone(cell(row, index, "phone")),
     job_role: cell(row, index, "jobRole") || null,
     call_done_by: callDoneBy,
     call_status: cell(row, index, "callStatus") || null,
