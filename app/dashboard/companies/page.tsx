@@ -7,7 +7,6 @@ import { useCompanies } from "@/lib/useCompanies";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { useSyncVersion } from "@/lib/useSyncVersion";
 import { Table, Th, Td, Tr, EmptyRow, LoadingRow } from "@/components/Table";
-import { AccessIssuesBanner } from "@/components/AccessIssuesBanner";
 import { StatTile } from "@/components/StatTile";
 import { SelectFilter } from "@/components/SelectFilter";
 import type { Candidate } from "@/lib/types";
@@ -102,8 +101,6 @@ export default function CompanyAnalyticsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <AccessIssuesBanner companies={companies} />
-
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 max-w-xl">
         <StatTile label="Total Hired" value={loading ? "…" : totalHired} accent="success" />
       </div>

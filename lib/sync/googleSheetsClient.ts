@@ -154,3 +154,39 @@ export async function fetchSheetRows(
   const [headers, ...rows] = values;
   return { headers: (headers ?? []).map((h) => (h ?? "").trim()), rows: rows as string[][] };
 }
+
+/**
+ * Reads several tabs of the same spreadsheet in one API call instead of one
+ * call per tab. Google's read quota is metered per request, not per row, so
+ * this matters whenever a caller needs many tabs at once — confirmed
+ * 2026-09-10: probing ~150 candidate tabs one at a time (even at modest
+ * concurrency) tripped the quota badly enough that retries pushed a single
+ * rescan run past ten minutes. Callers must pass exact tab titles (e.g. from
+ * spreadsheets.get metadata) — unlike fetchSheetRows, there's no fuzzy
+ * resolveActualTabName step here, since batchGet fails the whole call on one
+ * bad range name.
+ */
+export async function fetchManyTabsRows(
+  spreadsheetId: string,
+  tabNames: string[],
+): Promise<Map<string, { headers: string[]; rows: string[][] }>> {
+  const result = new Map<string, { headers: string[]; rows: string[][] }>();
+  if (tabNames.length === 0) return result;
+
+  const sheets = getSheetsClient();
+  const response = await withQuotaRetry(() =>
+    sheets.spreadsheets.values.batchGet({
+      spreadsheetId,
+      ranges: tabNames,
+    }),
+  );
+  await sleep(150);
+
+  const valueRanges = response.data.valueRanges ?? [];
+  tabNames.forEach((tabName, i) => {
+    const values = valueRanges[i]?.values ?? [];
+    const [headers, ...rows] = values;
+    result.set(tabName, { headers: (headers ?? []).map((h) => (h ?? "").trim()), rows: rows as string[][] });
+  });
+  return result;
+}

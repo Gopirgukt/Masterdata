@@ -12,6 +12,8 @@ export type Company = {
   // Added by migrations/007_company_sheet_link.sql — absent until that migration runs.
   company_sheet_url: string | null;
   company_sheet_id: string | null;
+  // Added by migrations/011_new_tabs_detected.sql — absent until that migration runs.
+  new_tabs_detected: string | null;
 };
 
 export type Candidate = {

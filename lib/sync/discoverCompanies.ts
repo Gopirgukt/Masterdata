@@ -18,11 +18,14 @@ const MASTER_TAB = "Tech interactions";
 // own 60s ceiling; a backlog just trickles in one company per run instead.
 const MAX_NEW_COMPANIES_PER_RUN = 1;
 
-const NAME_HINTS = ["name"];
-const PHONE_HINTS = ["mobile number", "phone number", "mobile", "phone"];
-const STATUS_HINTS = ["screening status", "internal screening status", "tech team screening status"];
+// Exported for reuse by lib/sync/rescanTabs.ts, which applies the same
+// "does this look like a real candidate-tracking tab" heuristic to tabs
+// already in existing companies' spreadsheets, not just brand-new ones.
+export const NAME_HINTS = ["name"];
+export const PHONE_HINTS = ["mobile number", "phone number", "mobile", "phone"];
+export const STATUS_HINTS = ["screening status", "internal screening status", "tech team screening status"];
 
-function headerMatches(headers: string[], hints: string[]): boolean {
+export function headerMatches(headers: string[], hints: string[]): boolean {
   const normalized = headers.map((h) => (h ?? "").trim().toLowerCase());
   return hints.some((hint) => normalized.some((h) => h === hint || h.includes(hint)));
 }
