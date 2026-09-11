@@ -53,6 +53,9 @@ export type Candidate = {
   tr2_status: string | null;
   hr_mr_status: string | null;
   hired_status: string | null;
+  // Added by migrations/012_call_tr_remarks.sql — absent until that migration runs.
+  call_remarks: string | null;
+  tr_remarks: string | null;
 };
 
 export type CandidateWithCompany = Candidate & {

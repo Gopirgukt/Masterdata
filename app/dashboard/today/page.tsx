@@ -17,6 +17,7 @@ import { useSyncVersion } from "@/lib/useSyncVersion";
 import { CompanyFilter } from "@/components/CompanyFilter";
 import { MiniCalendar, monthOf, type ViewMonth } from "@/components/MiniCalendar";
 import { Table, Th, Td, Tr, EmptyRow, LoadingRow } from "@/components/Table";
+import { CandidateFeedbackModal } from "@/components/CandidateFeedbackModal";
 import type { CandidateWithCompany } from "@/lib/types";
 
 type Bucket = "today" | "tomorrow" | "missed";
@@ -31,6 +32,7 @@ export default function TodayInterviewsPage() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [showCalendar, setShowCalendar] = useState(false);
   const [showBreakdown, setShowBreakdown] = useState(false);
+  const [feedbackFor, setFeedbackFor] = useState<CandidateWithCompany | null>(null);
   const syncVersion = useSyncVersion();
 
   const today = useMemo(() => toIsoDate(new Date()), []);
@@ -233,13 +235,14 @@ export default function TodayInterviewsPage() {
               <Th>Company</Th>
               <Th>Interviewer</Th>
               <Th>Tech team status</Th>
+              <Th>Feedback</Th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <LoadingRow colSpan={6} />
+              <LoadingRow colSpan={7} />
             ) : filteredRows.length === 0 ? (
-              <EmptyRow colSpan={6} />
+              <EmptyRow colSpan={7} />
             ) : (
               filteredRows.map((r) => (
                 <Tr key={r.id}>
@@ -249,6 +252,14 @@ export default function TodayInterviewsPage() {
                   <Td>{r.companies?.name ?? "-"}</Td>
                   <Td>{dashIfEmpty(r.tech_screening_taken_by)}</Td>
                   <Td className={statusToneClass(r.tech_status)}>{dashIfEmpty(r.tech_status)}</Td>
+                  <Td>
+                    <button
+                      onClick={() => setFeedbackFor(r)}
+                      className="text-accent hover:text-accent-hover hover:underline"
+                    >
+                      View
+                    </button>
+                  </Td>
                 </Tr>
               ))
             )}
@@ -267,6 +278,13 @@ export default function TodayInterviewsPage() {
             setSelectedDate(date);
             if (date) setViewMonth(monthOf(date));
           }}
+        />
+      )}
+
+      {feedbackFor && (
+        <CandidateFeedbackModal
+          candidate={{ ...feedbackFor, companyName: feedbackFor.companies?.name }}
+          onClose={() => setFeedbackFor(null)}
         />
       )}
     </div>

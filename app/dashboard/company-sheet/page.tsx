@@ -11,6 +11,7 @@ import { SelectFilter } from "@/components/SelectFilter";
 import { ShowMoreButton } from "@/components/ShowMoreButton";
 import { usePagedReveal } from "@/lib/usePagedReveal";
 import { Table, Th, Td, Tr, EmptyRow, LoadingRow } from "@/components/Table";
+import { CandidateFeedbackModal } from "@/components/CandidateFeedbackModal";
 import type { CandidateWithCompany } from "@/lib/types";
 
 const ROUND_FIELDS = [
@@ -27,6 +28,7 @@ export default function CompanySheetPage() {
   const [loading, setLoading] = useState(true);
   const [companyId, setCompanyId] = useState("");
   const [roundFilters, setRoundFilters] = useState<Record<string, string>>({});
+  const [feedbackFor, setFeedbackFor] = useState<CandidateWithCompany | null>(null);
   const syncVersion = useSyncVersion();
 
   useEffect(() => {
@@ -36,7 +38,7 @@ export default function CompanySheetPage() {
       supabase
         .from("candidates")
         .select(
-          "id, name, company_id, companies(name), screening_status, tr1_status, tr2_status, hr_mr_status, hired_status",
+          "id, name, company_id, companies(name), screening_status, tr1_status, tr2_status, hr_mr_status, hired_status, job_role, call_done_by, call_date, call_status, call_remarks, interested, tr_status, tr_tech_rating, tr_comm_rating, tr_remarks, tech_screening_taken_by, tech_status, tech_tech_rating, tech_comm_rating, tech_remarks",
         )
         .eq("shared_to_company", true)
         .range(start, end),
@@ -117,13 +119,14 @@ export default function CompanySheetPage() {
             {ROUND_FIELDS.map(({ key, label }) => (
               <Th key={key}>{label}</Th>
             ))}
+            <Th>Feedback</Th>
           </tr>
         </thead>
         <tbody>
           {loading ? (
-            <LoadingRow colSpan={2 + ROUND_FIELDS.length} />
+            <LoadingRow colSpan={3 + ROUND_FIELDS.length} />
           ) : visible.length === 0 ? (
-            <EmptyRow colSpan={2 + ROUND_FIELDS.length} />
+            <EmptyRow colSpan={3 + ROUND_FIELDS.length} />
           ) : (
             visible.map((r) => {
               const record = r as unknown as Record<string, string | null>;
@@ -136,12 +139,27 @@ export default function CompanySheetPage() {
                       {dashIfEmpty(record[key])}
                     </Td>
                   ))}
+                  <Td>
+                    <button
+                      onClick={() => setFeedbackFor(r)}
+                      className="text-accent hover:text-accent-hover hover:underline"
+                    >
+                      View
+                    </button>
+                  </Td>
                 </Tr>
               );
             })
           )}
         </tbody>
       </Table>
+
+      {feedbackFor && (
+        <CandidateFeedbackModal
+          candidate={{ ...feedbackFor, companyName: feedbackFor.companies?.name }}
+          onClose={() => setFeedbackFor(null)}
+        />
+      )}
 
       <ShowMoreButton visibleCount={visibleCount} total={total} onClick={showMore} />
     </div>

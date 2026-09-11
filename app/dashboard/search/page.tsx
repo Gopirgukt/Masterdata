@@ -16,6 +16,7 @@ import { SearchInput } from "@/components/SearchInput";
 import { CompanyFilter } from "@/components/CompanyFilter";
 import { SelectFilter } from "@/components/SelectFilter";
 import { ShowMoreButton } from "@/components/ShowMoreButton";
+import { CandidateFeedbackModal } from "@/components/CandidateFeedbackModal";
 import type { CandidateWithCompany } from "@/lib/types";
 
 function CandidateSearchInner() {
@@ -36,6 +37,7 @@ function CandidateSearchInner() {
   const [rows, setRows] = useState<CandidateWithCompany[]>([]);
   const [loading, setLoading] = useState(true);
   const [remarksOnly, setRemarksOnly] = useState(false);
+  const [feedbackFor, setFeedbackFor] = useState<CandidateWithCompany | null>(null);
   const syncVersion = useSyncVersion();
 
   useEffect(() => {
@@ -136,13 +138,14 @@ function CandidateSearchInner() {
             <Th>Tech team remarks</Th>
             <Th>Recording link</Th>
             <Th>Shared to company</Th>
+            <Th>Feedback</Th>
           </tr>
         </thead>
         <tbody>
           {loading ? (
-            <LoadingRow colSpan={10} />
+            <LoadingRow colSpan={11} />
           ) : filteredRows.length === 0 ? (
-            <EmptyRow colSpan={10} label={remarksOnly ? "No candidates with remarks yet" : "No results"} />
+            <EmptyRow colSpan={11} label={remarksOnly ? "No candidates with remarks yet" : "No results"} />
           ) : (
             visible.map((r) => {
               const recording = recordingHref(r.recording_link);
@@ -184,6 +187,14 @@ function CandidateSearchInner() {
                   <Td>
                     <Badge tone={r.shared_to_company ? "accent" : "neutral"}>{r.shared_to_company ? "Yes" : "No"}</Badge>
                   </Td>
+                  <Td>
+                    <button
+                      onClick={() => setFeedbackFor(r)}
+                      className="text-accent hover:text-accent-hover hover:underline"
+                    >
+                      View
+                    </button>
+                  </Td>
                 </Tr>
               );
             })
@@ -192,6 +203,13 @@ function CandidateSearchInner() {
       </Table>
 
       {!loading && <ShowMoreButton visibleCount={visibleCount} total={total} onClick={showMore} />}
+
+      {feedbackFor && (
+        <CandidateFeedbackModal
+          candidate={{ ...feedbackFor, companyName: feedbackFor.companies?.name }}
+          onClose={() => setFeedbackFor(null)}
+        />
+      )}
     </div>
   );
 }
