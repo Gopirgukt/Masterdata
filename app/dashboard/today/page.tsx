@@ -101,17 +101,18 @@ export default function TodayInterviewsPage() {
   // or a picked calendar date) — "Other" (blank/in-progress statuses) is
   // tracked but not shown, so a company with only pending interviews just
   // doesn't render a count instead of cluttering the row with "Other: 3".
-  const companyBreakdown = new Map<string, Record<"P1" | "P2" | "Hold" | "Reject" | "Other", number>>();
+  const companyBreakdown = new Map<string, Record<"P1" | "P2" | "P3" | "Hold" | "Reject" | "Other", number>>();
   for (const r of filteredRows) {
     const companyName = r.companies?.name ?? "Unknown";
     if (!companyBreakdown.has(companyName)) {
-      companyBreakdown.set(companyName, { P1: 0, P2: 0, Hold: 0, Reject: 0, Other: 0 });
+      companyBreakdown.set(companyName, { P1: 0, P2: 0, P3: 0, Hold: 0, Reject: 0, Other: 0 });
     }
     companyBreakdown.get(companyName)![categorizeStatus(r.tech_status)]++;
   }
-  const breakdownToneClass: Record<"P1" | "P2" | "Hold" | "Reject", string> = {
+  const breakdownToneClass: Record<"P1" | "P2" | "P3" | "Hold" | "Reject", string> = {
     P1: "text-success",
     P2: "text-success",
+    P3: "text-success",
     Hold: "text-accent",
     Reject: "text-danger",
   };
@@ -207,6 +208,7 @@ export default function TodayInterviewsPage() {
                   <Th>Company</Th>
                   <Th>P1</Th>
                   <Th>P2</Th>
+                  <Th>P3</Th>
                   <Th>Hold</Th>
                   <Th>Reject</Th>
                 </tr>
@@ -217,6 +219,7 @@ export default function TodayInterviewsPage() {
                     <Td className="font-medium">{companyName}</Td>
                     <Td className={tally.P1 > 0 ? breakdownToneClass.P1 : undefined}>{tally.P1 || "-"}</Td>
                     <Td className={tally.P2 > 0 ? breakdownToneClass.P2 : undefined}>{tally.P2 || "-"}</Td>
+                    <Td className={tally.P3 > 0 ? breakdownToneClass.P3 : undefined}>{tally.P3 || "-"}</Td>
                     <Td className={tally.Hold > 0 ? breakdownToneClass.Hold : undefined}>{tally.Hold || "-"}</Td>
                     <Td className={tally.Reject > 0 ? breakdownToneClass.Reject : undefined}>{tally.Reject || "-"}</Td>
                   </Tr>

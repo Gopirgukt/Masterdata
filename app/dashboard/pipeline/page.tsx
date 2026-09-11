@@ -25,12 +25,13 @@ type CompanyDayRow = {
   interested: number;
   P1: number;
   P2: number;
+  P3: number;
   Hold: number;
   Reject: number;
 };
 
 function emptyCompanyDayRow(company: string, recruiter: string): CompanyDayRow {
-  return { company, recruiter, assigned: 0, attempts: 0, interested: 0, P1: 0, P2: 0, Hold: 0, Reject: 0 };
+  return { company, recruiter, assigned: 0, attempts: 0, interested: 0, P1: 0, P2: 0, P3: 0, Hold: 0, Reject: 0 };
 }
 
 export default function RecruiterPipelinePage() {
@@ -128,9 +129,10 @@ export default function RecruiterPipelinePage() {
   const companyDayRows = Array.from(byCompanyOnSelectedDate.values()).sort(
     (a, b) => a.company.localeCompare(b.company) || b.attempts - a.attempts,
   );
-  const breakdownToneClass: Record<"P1" | "P2" | "Hold" | "Reject", string> = {
+  const breakdownToneClass: Record<"P1" | "P2" | "P3" | "Hold" | "Reject", string> = {
     P1: "text-success",
     P2: "text-success",
+    P3: "text-success",
     Hold: "text-accent",
     Reject: "text-danger",
   };
@@ -190,17 +192,18 @@ export default function RecruiterPipelinePage() {
                 <Th>Interested</Th>
                 <Th>P1</Th>
                 <Th>P2</Th>
+                <Th>P3</Th>
                 <Th>Hold</Th>
                 <Th>Reject</Th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <LoadingRow colSpan={9} />
+                <LoadingRow colSpan={10} />
               ) : migrationNeeded ? (
-                <EmptyRow colSpan={9} label="Run the migrations above to see pipeline data" />
+                <EmptyRow colSpan={10} label="Run the migrations above to see pipeline data" />
               ) : companyDayRows.length === 0 ? (
-                <EmptyRow colSpan={9} label="No activity logged for this day" />
+                <EmptyRow colSpan={10} label="No activity logged for this day" />
               ) : (
                 companyDayRows.map((r) => (
                   <Tr key={`${r.company}||${r.recruiter}`}>
@@ -211,6 +214,7 @@ export default function RecruiterPipelinePage() {
                     <Td>{r.interested || "-"}</Td>
                     <Td className={r.P1 > 0 ? breakdownToneClass.P1 : undefined}>{r.P1 || "-"}</Td>
                     <Td className={r.P2 > 0 ? breakdownToneClass.P2 : undefined}>{r.P2 || "-"}</Td>
+                    <Td className={r.P3 > 0 ? breakdownToneClass.P3 : undefined}>{r.P3 || "-"}</Td>
                     <Td className={r.Hold > 0 ? breakdownToneClass.Hold : undefined}>{r.Hold || "-"}</Td>
                     <Td className={r.Reject > 0 ? breakdownToneClass.Reject : undefined}>{r.Reject || "-"}</Td>
                   </Tr>

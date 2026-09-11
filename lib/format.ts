@@ -89,22 +89,26 @@ export function statusToneClass(status: string | null | undefined): string {
   const s = (status ?? "").toLowerCase();
   if (s.includes("reject")) return "text-danger";
   if (s.includes("hold")) return "text-accent";
-  if (s.includes("p1") || s.includes("p2")) return "text-success";
+  if (s.includes("p1") || s.includes("p2") || s.includes("p3")) return "text-success";
   return "";
 }
 
-export type StatusCategory = "P1" | "P2" | "Hold" | "Reject" | "Other";
+export type StatusCategory = "P1" | "P2" | "P3" | "Hold" | "Reject" | "Other";
 
-/** Buckets a tech team status string into one of the four decision categories
- * (or "Other" for blank/in-progress statuses) — same keyword rules as
+/** Buckets a tech team status string into one of the decision categories (or
+ * "Other" for blank/in-progress statuses) — same keyword rules as
  * statusToneClass, split out so callers can tally counts per category
- * (e.g. per-company P1/P2/Hold/Reject breakdowns) instead of just coloring text. */
+ * (e.g. per-company P1/P2/P3/Hold/Reject breakdowns) instead of just coloring
+ * text. "P3" added 2026-09-11 once "Selected - P3" started appearing in the
+ * data — before that, those rows fell into "Other" and were silently excluded
+ * from every completed/outcome count. */
 export function categorizeStatus(status: string | null | undefined): StatusCategory {
   const s = (status ?? "").toLowerCase();
   if (s.includes("reject")) return "Reject";
   if (s.includes("hold")) return "Hold";
   if (s.includes("p1")) return "P1";
   if (s.includes("p2")) return "P2";
+  if (s.includes("p3")) return "P3";
   return "Other";
 }
 

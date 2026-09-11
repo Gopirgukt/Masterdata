@@ -10,7 +10,15 @@ import { SelectFilter } from "@/components/SelectFilter";
 import { Table, Th, Td, Tr, EmptyRow, LoadingRow } from "@/components/Table";
 import type { CandidateWithCompany } from "@/lib/types";
 
-type CompanyTally = { company: string; completed: number; P1: number; P2: number; Hold: number; Reject: number };
+type CompanyTally = {
+  company: string;
+  completed: number;
+  P1: number;
+  P2: number;
+  P3: number;
+  Hold: number;
+  Reject: number;
+};
 type InterviewerGroup = { interviewer: string; total: number; companies: CompanyTally[] };
 
 type RecruiterTally = {
@@ -20,13 +28,15 @@ type RecruiterTally = {
   interested: number;
   P1: number;
   P2: number;
+  P3: number;
   Hold: number;
   Reject: number;
 };
 
-const BREAKDOWN_TONE: Record<"P1" | "P2" | "Hold" | "Reject", string> = {
+const BREAKDOWN_TONE: Record<"P1" | "P2" | "P3" | "Hold" | "Reject", string> = {
   P1: "text-success",
   P2: "text-success",
+  P3: "text-success",
   Hold: "text-accent",
   Reject: "text-danger",
 };
@@ -42,8 +52,8 @@ function formatHourLabel(hour: number): string {
   return `${display} ${period}`;
 }
 
-function emptyTally(): { P1: number; P2: number; Hold: number; Reject: number } {
-  return { P1: 0, P2: 0, Hold: 0, Reject: 0 };
+function emptyTally(): { P1: number; P2: number; P3: number; Hold: number; Reject: number } {
+  return { P1: 0, P2: 0, P3: 0, Hold: 0, Reject: 0 };
 }
 
 export default function DayOutcomePage() {
@@ -93,7 +103,7 @@ export default function DayOutcomePage() {
     if (!interviewerMap.has(interviewer)) interviewerMap.set(interviewer, new Map());
     const byCompany = interviewerMap.get(interviewer)!;
     if (!byCompany.has(companyName)) {
-      byCompany.set(companyName, { company: companyName, completed: 0, P1: 0, P2: 0, Hold: 0, Reject: 0 });
+      byCompany.set(companyName, { company: companyName, completed: 0, P1: 0, P2: 0, P3: 0, Hold: 0, Reject: 0 });
     }
     const tally = byCompany.get(companyName)!;
     // "Completed" = has an actual outcome (P1/P2/Hold/Reject), not just
@@ -198,6 +208,7 @@ export default function DayOutcomePage() {
                       <Th>Completed</Th>
                       <Th>P1</Th>
                       <Th>P2</Th>
+                      <Th>P3</Th>
                       <Th>Hold</Th>
                       <Th>Reject</Th>
                     </tr>
@@ -209,6 +220,7 @@ export default function DayOutcomePage() {
                         <Td>{c.completed}</Td>
                         <Td className={c.P1 > 0 ? BREAKDOWN_TONE.P1 : undefined}>{c.P1 || "-"}</Td>
                         <Td className={c.P2 > 0 ? BREAKDOWN_TONE.P2 : undefined}>{c.P2 || "-"}</Td>
+                        <Td className={c.P3 > 0 ? BREAKDOWN_TONE.P3 : undefined}>{c.P3 || "-"}</Td>
                         <Td className={c.Hold > 0 ? BREAKDOWN_TONE.Hold : undefined}>{c.Hold || "-"}</Td>
                         <Td className={c.Reject > 0 ? BREAKDOWN_TONE.Reject : undefined}>{c.Reject || "-"}</Td>
                       </Tr>
@@ -231,15 +243,16 @@ export default function DayOutcomePage() {
                 <Th>Interested</Th>
                 <Th>P1</Th>
                 <Th>P2</Th>
+                <Th>P3</Th>
                 <Th>Hold</Th>
                 <Th>Reject</Th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <LoadingRow colSpan={8} />
+                <LoadingRow colSpan={9} />
               ) : recruiterRows.length === 0 ? (
-                <EmptyRow colSpan={8} label="No calls logged for this day" />
+                <EmptyRow colSpan={9} label="No calls logged for this day" />
               ) : (
                 recruiterRows.map((r) => (
                   <Tr key={r.recruiter}>
@@ -249,6 +262,7 @@ export default function DayOutcomePage() {
                     <Td>{r.interested || "-"}</Td>
                     <Td className={r.P1 > 0 ? BREAKDOWN_TONE.P1 : undefined}>{r.P1 || "-"}</Td>
                     <Td className={r.P2 > 0 ? BREAKDOWN_TONE.P2 : undefined}>{r.P2 || "-"}</Td>
+                    <Td className={r.P3 > 0 ? BREAKDOWN_TONE.P3 : undefined}>{r.P3 || "-"}</Td>
                     <Td className={r.Hold > 0 ? BREAKDOWN_TONE.Hold : undefined}>{r.Hold || "-"}</Td>
                     <Td className={r.Reject > 0 ? BREAKDOWN_TONE.Reject : undefined}>{r.Reject || "-"}</Td>
                   </Tr>
