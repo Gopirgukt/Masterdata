@@ -6,6 +6,7 @@ import { categorizeStatus, formatDateLabel, parseTimeToMinutes, toIsoDate } from
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { useSyncVersion } from "@/lib/useSyncVersion";
 import { MiniCalendar, monthOf, type ViewMonth } from "@/components/MiniCalendar";
+import { OutcomeStatTiles } from "@/components/OutcomeStatTiles";
 import { SelectFilter } from "@/components/SelectFilter";
 import { Table, Th, Td, Tr, EmptyRow, LoadingRow } from "@/components/Table";
 import type { CandidateWithCompany } from "@/lib/types";
@@ -152,6 +153,29 @@ export default function DayOutcomePage() {
   }
   const recruiterRows = Array.from(recruiterMap.values()).sort((a, b) => b.attempts - a.attempts);
 
+  const interviewerTotals = interviewerGroups
+    .flatMap((g) => g.companies)
+    .reduce(
+      (sum, c) => ({
+        P1: sum.P1 + c.P1,
+        P2: sum.P2 + c.P2,
+        P3: sum.P3 + c.P3,
+        Hold: sum.Hold + c.Hold,
+        Reject: sum.Reject + c.Reject,
+      }),
+      { P1: 0, P2: 0, P3: 0, Hold: 0, Reject: 0 },
+    );
+  const recruiterTotals = recruiterRows.reduce(
+    (sum, r) => ({
+      P1: sum.P1 + r.P1,
+      P2: sum.P2 + r.P2,
+      P3: sum.P3 + r.P3,
+      Hold: sum.Hold + r.Hold,
+      Reject: sum.Reject + r.Reject,
+    }),
+    { P1: 0, P2: 0, P3: 0, Hold: 0, Reject: 0 },
+  );
+
   const callsByDate = new Map<string, number>();
   for (const c of candidates) {
     if (!c.call_date) continue;
@@ -192,7 +216,9 @@ export default function DayOutcomePage() {
           ) : interviewerGroups.length === 0 ? (
             <div className="text-sm text-ink-muted">No tech screenings on this day.</div>
           ) : (
-            interviewerGroups.map((group) => (
+            <>
+              <OutcomeStatTiles totals={interviewerTotals} />
+              {interviewerGroups.map((group) => (
               <div key={group.interviewer} className="flex flex-col gap-2">
                 <div className="flex items-baseline gap-2">
                   <span className="font-medium text-ink">{group.interviewer}</span>
@@ -228,12 +254,14 @@ export default function DayOutcomePage() {
                   </tbody>
                 </Table>
               </div>
-            ))
+              ))}
+            </>
           )}
         </div>
 
         <div className="flex flex-col gap-3">
           <h2 className="text-base font-medium text-ink">Recruiters (calls)</h2>
+          {!loading && recruiterRows.length > 0 && <OutcomeStatTiles totals={recruiterTotals} />}
           <Table>
             <thead>
               <tr>

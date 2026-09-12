@@ -18,6 +18,7 @@ import { CompanyFilter } from "@/components/CompanyFilter";
 import { MiniCalendar, monthOf, type ViewMonth } from "@/components/MiniCalendar";
 import { Table, Th, Td, Tr, EmptyRow, LoadingRow } from "@/components/Table";
 import { CandidateFeedbackModal } from "@/components/CandidateFeedbackModal";
+import { OutcomeStatTiles } from "@/components/OutcomeStatTiles";
 import type { CandidateWithCompany } from "@/lib/types";
 
 type Bucket = "today" | "tomorrow" | "missed";
@@ -116,6 +117,16 @@ export default function TodayInterviewsPage() {
     Hold: "text-accent",
     Reject: "text-danger",
   };
+  const breakdownTotals = Array.from(companyBreakdown.values()).reduce(
+    (sum, t) => ({
+      P1: sum.P1 + t.P1,
+      P2: sum.P2 + t.P2,
+      P3: sum.P3 + t.P3,
+      Hold: sum.Hold + t.Hold,
+      Reject: sum.Reject + t.Reject,
+    }),
+    { P1: 0, P2: 0, P3: 0, Hold: 0, Reject: 0 },
+  );
 
   const chips: { key: Bucket; label: string; tone: "accent" | "neutral" | "danger" }[] = [
     { key: "today", label: "Today", tone: "accent" },
@@ -198,10 +209,11 @@ export default function TodayInterviewsPage() {
         )}
 
         {showBreakdown && !loading && companyBreakdown.size > 0 && (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-3">
             <div className="text-sm text-ink-secondary">
               {companyBreakdown.size} {companyBreakdown.size === 1 ? "company" : "companies"}
             </div>
+            <OutcomeStatTiles totals={breakdownTotals} />
             <Table>
               <thead>
                 <tr>
