@@ -5,7 +5,6 @@ import { createClient } from "@/lib/supabase/client";
 import { categorizeStatus, formatDateLabel, toIsoDate } from "@/lib/format";
 import { useSyncVersion } from "@/lib/useSyncVersion";
 import { MiniCalendar, monthOf, type ViewMonth } from "@/components/MiniCalendar";
-import { OutcomeStatTiles } from "@/components/OutcomeStatTiles";
 import { Table, Th, Td, Tr, EmptyRow, LoadingRow } from "@/components/Table";
 import type { CandidateWithCompany } from "@/lib/types";
 
@@ -130,16 +129,6 @@ export default function RecruiterPipelinePage() {
   const companyDayRows = Array.from(byCompanyOnSelectedDate.values()).sort(
     (a, b) => a.company.localeCompare(b.company) || b.attempts - a.attempts,
   );
-  const dayTotals = companyDayRows.reduce(
-    (sum, r) => ({
-      P1: sum.P1 + r.P1,
-      P2: sum.P2 + r.P2,
-      P3: sum.P3 + r.P3,
-      Hold: sum.Hold + r.Hold,
-      Reject: sum.Reject + r.Reject,
-    }),
-    { P1: 0, P2: 0, P3: 0, Hold: 0, Reject: 0 },
-  );
   const breakdownToneClass: Record<"P1" | "P2" | "P3" | "Hold" | "Reject", string> = {
     P1: "text-success",
     P2: "text-success",
@@ -192,8 +181,6 @@ export default function RecruiterPipelinePage() {
               </button>
             </div>
           </div>
-
-          {!loading && !migrationNeeded && companyDayRows.length > 0 && <OutcomeStatTiles totals={dayTotals} />}
 
           <Table>
             <thead>

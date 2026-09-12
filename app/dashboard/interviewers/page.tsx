@@ -8,7 +8,6 @@ import { fetchAllRows } from "@/lib/fetchAllRows";
 import { useSyncVersion } from "@/lib/useSyncVersion";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { StackedOutcomeChart } from "@/components/StackedOutcomeChart";
-import { OutcomeStatTiles } from "@/components/OutcomeStatTiles";
 import { Table, Th, Td, Tr, EmptyRow, LoadingRow } from "@/components/Table";
 import type { Candidate } from "@/lib/types";
 
@@ -81,16 +80,6 @@ export default function InterviewerReportPage() {
     else if (category === "Reject") row.reject++;
   }
   const rows = Array.from(byInterviewer.values()).sort((a, b) => b.completed - a.completed);
-  const totals = rows.reduce(
-    (sum, r) => ({
-      P1: sum.P1 + r.p1,
-      P2: sum.P2 + r.p2,
-      P3: sum.P3 + r.p3,
-      Hold: sum.Hold + r.hold,
-      Reject: sum.Reject + r.reject,
-    }),
-    { P1: 0, P2: 0, P3: 0, Hold: 0, Reject: 0 },
-  );
   const chartData = rows.slice(0, CHART_LIMIT).map((r) => ({
     label: r.interviewer,
     P1: r.p1,
@@ -112,10 +101,7 @@ export default function InterviewerReportPage() {
       />
 
       {!loading && rows.length > 0 && (
-        <>
-          <OutcomeStatTiles totals={totals} />
-          <StackedOutcomeChart title="Outcomes by interviewer" data={chartData} />
-        </>
+        <StackedOutcomeChart title="Outcomes by interviewer" data={chartData} />
       )}
 
       <Table>
