@@ -62,6 +62,29 @@ export type CandidateWithCompany = Candidate & {
   companies: { name: string } | null;
 };
 
+// Added by migrations/013_job_openings.sql — a read-only mirror of the master
+// sheet's "Main" tab (one row per job opening ever requested), not linked to
+// `companies` since many of these never became a registered company.
+export type JobOpening = {
+  id: string;
+  crm_owner: string | null;
+  jd_no: string | null;
+  requested_date: string | null;
+  company_name: string;
+  website: string | null;
+  role: string | null;
+  years_of_experience: string | null;
+  ctc: string | null;
+  openings: number | null;
+  poc_name: string | null;
+  poc_mobile: string | null;
+  poc_email: string | null;
+  technical_recruiter: string | null;
+  status: string | null;
+  is_active: string | null;
+  synced_at: string;
+};
+
 // Added by migrations/004_sync_runs.sql — one row per sync job execution.
 export type SyncRun = {
   id: string;
@@ -91,6 +114,11 @@ export type Database = {
         Row: SyncRun;
         Insert: Partial<SyncRun>;
         Update: Partial<SyncRun>;
+      };
+      job_openings: {
+        Row: JobOpening;
+        Insert: Partial<JobOpening>;
+        Update: Partial<JobOpening>;
       };
     };
   };

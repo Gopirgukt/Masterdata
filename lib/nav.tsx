@@ -135,4 +135,14 @@ export const NAV_ITEMS = [
       </Icon>
     ),
   },
+  {
+    href: "/dashboard/job-openings",
+    label: "Job Openings",
+    icon: (
+      <Icon>
+        <rect x="2.5" y="6.5" width="15" height="10" rx="1.5" />
+        <path d="M7 6.5V5a1.5 1.5 0 011.5-1.5h3A1.5 1.5 0 0113 5v1.5M2.5 11h15" />
+      </Icon>
+    ),
+  },
 ];
