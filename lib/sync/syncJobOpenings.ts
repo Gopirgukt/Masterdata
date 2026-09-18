@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchSheetRows } from "@/lib/sync/googleSheetsClient";
+import { parseSheetDate } from "@/lib/sync/mapping";
 
 // Same org-wide master spreadsheet discoverCompanies.ts reads "Tech
 // interactions" from — the "Main" tab is its one-row-per-JD requirement log,
@@ -7,25 +8,6 @@ import { fetchSheetRows } from "@/lib/sync/googleSheetsClient";
 // registered `companies` row with its own recruiting sheet.
 const MASTER_SHEET_ID = "19A6FoeqZcm4LofWPh1Wmvm5zGXLpSkSmCDvHlV3CmQs";
 const MAIN_TAB = "Main";
-
-const MONTHS: Record<string, number> = {
-  jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
-  jul: 6, aug: 7, sep: 8, sept: 8, oct: 9, nov: 10, dec: 11,
-};
-
-/** The sheet's date column mixes "Jan 6, 2026" and "Sept 12, 2026" — the
- * latter isn't reliably parsed by `Date.parse` across engines, so pull the
- * month/day/year out by hand instead of trusting the built-in parser. */
-function parseSheetDate(raw: string): string | null {
-  const match = raw.trim().match(/^([A-Za-z]+)\.?\s+(\d{1,2}),?\s+(\d{4})$/);
-  if (!match) return null;
-  const month = MONTHS[match[1].toLowerCase()];
-  if (month === undefined) return null;
-  const day = Number(match[2]);
-  const year = Number(match[3]);
-  const date = new Date(Date.UTC(year, month, day));
-  return date.toISOString().slice(0, 10);
-}
 
 function parseOpenings(raw: string): number | null {
   const match = raw.trim().match(/\d+/);

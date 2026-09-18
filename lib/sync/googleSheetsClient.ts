@@ -93,7 +93,7 @@ async function getSpreadsheetMetadata(sheets: ReturnType<typeof getSheetsClient>
 /**
  * Resolves a (possibly whitespace-trimmed) tab name to the sheet's actual title.
  * Real tab titles are often sloppy — "JD2 (Fullstack) " with a trailing space —
- * but a comma-separated tab list in `companies.sheet_tab` gets trimmed for
+ * but the newline-separated tab list in `companies.sheet_tab` gets trimmed for
  * usability, so we match loosely here rather than requiring exact whitespace.
  */
 async function resolveActualTabName(

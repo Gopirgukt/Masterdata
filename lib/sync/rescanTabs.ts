@@ -31,10 +31,12 @@ function hasRecentDate(headers: string[], rows: string[][]): boolean {
   return false;
 }
 
+// sheet_tab is newline-separated, not comma-separated — see runSync.ts's
+// parseSheetTabs for why (a tab name can itself contain a comma).
 function parseRegisteredTabs(sheetTab: string | null): Set<string> {
   return new Set(
     (sheetTab ?? "")
-      .split(",")
+      .split(/\r?\n/)
       .map((t) => t.trim().toLowerCase())
       .filter(Boolean),
   );

@@ -60,10 +60,14 @@ function findExisting(
 
 /** A company's candidate data can be spread across several tabs in its spreadsheet
  * (confirmed 2026-08-12 — Kanerika has JD_1/JD2/JD3, Tofler has JD_1/JD2/JD "1(Fullstack)",
- * each a separate open role). companies.sheet_tab holds a comma-separated list. */
+ * each a separate open role). companies.sheet_tab holds a newline-separated list —
+ * not comma-separated (confirmed 2026-09-18: Ergobite has a real tab literally
+ * named "JD_1 (AI,ML)", which a comma-joined list can't represent since the
+ * comma inside the name is indistinguishable from the list's own separator.
+ * A tab title can never contain a newline, so that can't happen here. */
 function parseSheetTabs(sheetTab: string): string[] {
   return sheetTab
-    .split(",")
+    .split(/\r?\n/)
     .map((t) => t.trim())
     .filter((t) => t.length > 0);
 }
