@@ -265,6 +265,21 @@ export type MappedCandidateRow = Partial<Candidate> & { name: string };
  *   (confirmed with the user 2026-08-13) — the same person shows up as "Gopi",
  *   "Gopichand", "gopichand" etc. across different companies' sheets.
  */
+/**
+ * A recruiter marks a repeat submission by writing exactly "Duplicate" in the
+ * Call Remarks column instead of deleting the row — confirmed 2026-09-23
+ * (Honebi's Ritesh Gupta): two rows shared the same phone number, and since
+ * findExisting() in runSync.ts matches candidates by phone, the sparse
+ * "Duplicate" row synced *after* the real, fully-interviewed row and silently
+ * overwrote it (call status, tech screening, ratings — all wiped back to
+ * blank). Skipping rows explicitly marked this way keeps the real row's data
+ * intact regardless of which one happens to come first or last in the sheet.
+ */
+export function isMarkedDuplicate(row: string[], headers: string[]): boolean {
+  const index = buildHeaderIndex(headers);
+  return cell(row, index, "callRemarks").trim().toLowerCase() === "duplicate";
+}
+
 export function mapSheetRow(
   row: string[],
   headers: string[],

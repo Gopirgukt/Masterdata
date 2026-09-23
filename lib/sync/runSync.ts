@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchSheetRows, extractSpreadsheetId, getSpreadsheetModifiedTime } from "@/lib/sync/googleSheetsClient";
-import { mapSheetRow } from "@/lib/sync/mapping";
+import { mapSheetRow, isMarkedDuplicate } from "@/lib/sync/mapping";
 import { hashRow } from "@/lib/sync/hash";
 import type { Company } from "@/lib/types";
 
@@ -10,6 +10,7 @@ export type CompanySyncResult = {
   updated: number;
   unchanged: number;
   skippedNoName: number;
+  skippedDuplicate: number;
   skippedInactive?: boolean;
   error?: string;
 };
@@ -73,7 +74,14 @@ function parseSheetTabs(sheetTab: string): string[] {
 }
 
 export async function syncCompany(company: Company): Promise<CompanySyncResult> {
-  const result: CompanySyncResult = { company: company.name, inserted: 0, updated: 0, unchanged: 0, skippedNoName: 0 };
+  const result: CompanySyncResult = {
+    company: company.name,
+    inserted: 0,
+    updated: 0,
+    unchanged: 0,
+    skippedNoName: 0,
+    skippedDuplicate: 0,
+  };
 
   if (!company.sheet_id || !company.sheet_tab) {
     result.error = "Missing sheet_id or sheet_tab — register the company with its sheet URL and tab name first.";
@@ -111,6 +119,11 @@ export async function syncCompany(company: Company): Promise<CompanySyncResult> 
     }
 
     for (const row of rows) {
+      if (isMarkedDuplicate(row, headers)) {
+        result.skippedDuplicate++;
+        continue;
+      }
+
       const mapped = mapSheetRow(row, headers, company.name, tab);
       if (!mapped) {
         result.skippedNoName++;
@@ -241,6 +254,7 @@ export async function syncAllCompanies(): Promise<CompanySyncResult[]> {
         updated: 0,
         unchanged: 0,
         skippedNoName: 0,
+        skippedDuplicate: 0,
         skippedInactive: true,
       };
     } else {
