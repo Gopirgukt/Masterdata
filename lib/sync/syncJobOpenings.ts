@@ -1,5 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { fetchSheetRows } from "@/lib/sync/googleSheetsClient";
+import { fetchSheetRows, extractSpreadsheetId } from "@/lib/sync/googleSheetsClient";
 import { parseSheetDate } from "@/lib/sync/mapping";
 
 // Same org-wide master spreadsheet discoverCompanies.ts reads "Tech
@@ -94,5 +94,57 @@ export async function syncJobOpenings(): Promise<JobOpeningsSyncResult> {
     return { total: mapped.length, error: `Inserted fine but failed to clear stale rows: ${deleteError.message}` };
   }
 
+  await linkMissingCompanySheets(headers, rows);
+
   return { total: mapped.length };
+}
+
+/** Fills companies.company_sheet_id from this same Main tab's "Company Sheet
+ * Link" column for any registered company that doesn't have one yet — without
+ * it, syncCompanySheets.ts never reads that company's Screening/TR/HR/Hired
+ * statuses at all. Previously only a one-off script
+ * (scripts/capture-company-sheet-links.ts) set this, so companies registered
+ * after it ran never got linked (confirmed 2026-09-30: 15 companies,
+ * including FourthPointer). Matches on the Internal Sheet Link first, since
+ * Main's company names drift from ours ("FOURTHPOINTER SERVICES PVT. LTD" vs
+ * "FourthPointer Services Pvt Ltd", "RapidRocket" vs "Rapid Rocket"), then
+ * falls back to an exact case-insensitive name. Never overwrites an existing
+ * link. */
+async function linkMissingCompanySheets(headers: string[], rows: string[][]) {
+  const nameCol = col(headers, "Company Name");
+  const internalCol = col(headers, "Internal Sheet Link");
+  const companySheetCol = col(headers, "Company Sheet Link");
+  if (companySheetCol < 0) return;
+
+  const normName = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
+  const isSheetLink = (s: string) => s.includes("/spreadsheets/d/");
+  const byInternalId = new Map<string, string>();
+  const byName = new Map<string, string>();
+  for (const row of rows) {
+    const link = (row[companySheetCol] ?? "").trim();
+    if (!isSheetLink(link)) continue;
+    const internal = internalCol >= 0 ? (row[internalCol] ?? "").trim() : "";
+    if (isSheetLink(internal)) {
+      const id = extractSpreadsheetId(internal);
+      if (!byInternalId.has(id)) byInternalId.set(id, link);
+    }
+    const name = nameCol >= 0 ? normName(row[nameCol] ?? "") : "";
+    if (name && !byName.has(name)) byName.set(name, link);
+  }
+
+  const supabase = createAdminClient();
+  const { data: unlinked } = await supabase
+    .from("companies")
+    .select("id, name, sheet_id")
+    .is("company_sheet_id", null);
+
+  for (const company of unlinked ?? []) {
+    const link = (company.sheet_id && byInternalId.get(company.sheet_id)) || byName.get(normName(company.name));
+    if (!link) continue;
+    await supabase
+      .from("companies")
+      .update({ company_sheet_url: link, company_sheet_id: extractSpreadsheetId(link) })
+      .eq("id", company.id)
+      .is("company_sheet_id", null);
+  }
 }

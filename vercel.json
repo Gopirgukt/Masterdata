@@ -1,1 +1,8 @@
-{}
+{
+  "crons": [
+    { "path": "/api/sync-company-sheets", "schedule": "30 2 * * *" },
+    { "path": "/api/rescan-tabs", "schedule": "0 3 * * *" },
+    { "path": "/api/discover-companies", "schedule": "30 3 * * *" },
+    { "path": "/api/sync-job-openings", "schedule": "0 4 * * *" }
+  ]
+}

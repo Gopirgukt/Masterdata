@@ -73,6 +73,23 @@ function parseSheetTabs(sheetTab: string): string[] {
     .filter((t) => t.length > 0);
 }
 
+/** Funnel-stage statuses that, for most companies, only exist on the separate
+ * Company Sheet and are written by syncCompanySheets.ts — not on the internal
+ * sheet this sync reads, so mapSheetRow returns null for them. Sending those
+ * nulls on every changed-row update wiped whatever the Company Sheet sync had
+ * set (confirmed 2026-09-30), and it only re-applies them when the Company
+ * Sheet itself was edited in the last 7 days. So a null here means "this
+ * sheet doesn't say", not "clear it". */
+const COMPANY_SHEET_STATUS_FIELDS = ["screening_status", "tr1_status", "tr2_status", "hr_mr_status", "hired_status"] as const;
+
+function withoutBlankCompanySheetStatuses<T extends Record<string, unknown>>(mapped: T): Partial<T> {
+  const patch: Partial<T> = { ...mapped };
+  for (const field of COMPANY_SHEET_STATUS_FIELDS) {
+    if (patch[field] == null) delete patch[field];
+  }
+  return patch;
+}
+
 export async function syncCompany(company: Company): Promise<CompanySyncResult> {
   const result: CompanySyncResult = {
     company: company.name,
@@ -162,7 +179,7 @@ export async function syncCompany(company: Company): Promise<CompanySyncResult> 
 
       const { error } = await supabase
         .from("candidates")
-        .update({ ...mapped, source_row_hash: rowHash, last_synced_at: new Date().toISOString() })
+        .update({ ...withoutBlankCompanySheetStatuses(mapped), source_row_hash: rowHash, last_synced_at: new Date().toISOString() })
         .eq("id", match.id);
       if (error) {
         tabErrors.push(`[${tab}] Update failed for "${mapped.name}": ${error.message}`);

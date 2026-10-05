@@ -53,6 +53,11 @@ export function SyncNowButton({
       return;
     }
 
+    // Company Sheet statuses come from a separate job — kick it off too.
+    // Fire-and-forget: it records no run to poll, and a failure here
+    // shouldn't mark the main sync as failed.
+    fetch("/api/sync-company-sheets", { method: "POST" }).catch(() => {});
+
     const baseline = lastFinishedAt;
     const startedPolling = Date.now();
 
