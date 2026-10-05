@@ -8,6 +8,7 @@ import { SearchInput } from "@/components/SearchInput";
 import { SelectFilter } from "@/components/SelectFilter";
 import { StatTile } from "@/components/StatTile";
 import { ShowMoreButton } from "@/components/ShowMoreButton";
+import { ExperiencePackageChart } from "@/components/ExperiencePackageChart";
 import { usePagedReveal } from "@/lib/usePagedReveal";
 import { Table, Th, Td, Tr, EmptyRow, LoadingRow } from "@/components/Table";
 import type { JobOpening } from "@/lib/types";
@@ -38,6 +39,7 @@ export default function JobOpeningsPage() {
   const [month, setMonth] = useState("");
   const [recruiter, setRecruiter] = useState("");
   const [status, setStatus] = useState("");
+  const [showGraph, setShowGraph] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -92,7 +94,20 @@ export default function JobOpeningsPage() {
         />
         <SelectFilter value={recruiter} onChange={setRecruiter} options={recruiterOptions} placeholder="All recruiters" />
         <SelectFilter value={status} onChange={setStatus} options={statusOptions} placeholder="All statuses" />
+        <button
+          onClick={() => setShowGraph((v) => !v)}
+          aria-pressed={showGraph}
+          className={`rounded-md border px-4 py-2 text-sm transition-colors ${
+            showGraph
+              ? "border-accent bg-accent-soft text-accent"
+              : "border-line-strong bg-surface text-ink-secondary hover:border-accent hover:text-accent"
+          }`}
+        >
+          {showGraph ? "Hide graph" : "Show graph"}
+        </button>
       </div>
+
+      {showGraph && !loading && <ExperiencePackageChart openings={filtered} />}
 
       <div className="text-sm text-ink-secondary">
         Showing {visibleCount} of {total} openings
