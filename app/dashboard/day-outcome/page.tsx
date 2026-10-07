@@ -87,6 +87,36 @@ function emptyTally(): { P1: number; P2: number; P3: number; Hold: number; Rejec
   return { P1: 0, P2: 0, P3: 0, Hold: 0, Reject: 0 };
 }
 
+/** One interviewer's totals across every company in the table above it —
+ * the at-a-glance line for tracking a single person over a week/month. */
+function InterviewerTotalRow({ companies }: { companies: CompanyTally[] }) {
+  const total = companies.reduce(
+    (sum, c) => ({
+      completed: sum.completed + c.completed,
+      P1: sum.P1 + c.P1,
+      P2: sum.P2 + c.P2,
+      P3: sum.P3 + c.P3,
+      Hold: sum.Hold + c.Hold,
+      Reject: sum.Reject + c.Reject,
+    }),
+    { completed: 0, ...emptyTally() },
+  );
+  const cell = "px-4 py-2.5 font-semibold";
+  return (
+    <tfoot className="bg-surface-hover">
+      <tr>
+        <td className={`${cell} text-ink`}>Total</td>
+        <td className={`${cell} text-ink`}>{total.completed}</td>
+        {(["P1", "P2", "P3", "Hold", "Reject"] as const).map((key) => (
+          <td key={key} className={`${cell} ${total[key] > 0 ? BREAKDOWN_TONE[key] : "text-ink-muted"}`}>
+            {total[key] || "-"}
+          </td>
+        ))}
+      </tr>
+    </tfoot>
+  );
+}
+
 export default function DayOutcomePage() {
   const [candidates, setCandidates] = useState<CandidateWithCompany[]>([]);
   const [loading, setLoading] = useState(true);
@@ -377,6 +407,7 @@ export default function DayOutcomePage() {
                       </Tr>
                     ))}
                   </tbody>
+                  {(person || group.companies.length > 1) && <InterviewerTotalRow companies={group.companies} />}
                 </Table>
               </div>
             ))
