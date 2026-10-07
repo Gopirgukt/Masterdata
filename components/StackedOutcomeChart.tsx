@@ -26,21 +26,21 @@ export type OutcomeRow = {
 
 // Fixed stacking/legend order — never re-derived from the data, so a filter
 // that changes which rows are present never reshuffles what each color means.
-const SERIES = ["P1", "P2", "P3", "Hold", "Reject"] as const;
+export const SERIES = ["P1", "P2", "P3", "Hold", "Reject"] as const;
 
 // P1/Hold/Reject reuse this app's existing status tokens (--color-success/
 // accent/danger) so the chart reads the same as every status-colored table
 // cell elsewhere in the dashboard; P2/P3 are new hues chosen to stay
 // distinguishable from P1 and each other (validated with the dataviz skill's
 // palette checker — light and dark variants both pass CVD/contrast).
-const LIGHT_COLORS: Record<(typeof SERIES)[number], string> = {
+export const LIGHT_COLORS: Record<(typeof SERIES)[number], string> = {
   P1: "#0ca30c",
   P2: "#0f8a7a",
   P3: "#c99a1f",
   Hold: "#2a78d6",
   Reject: "#d03b3b",
 };
-const DARK_COLORS: Record<(typeof SERIES)[number], string> = {
+export const DARK_COLORS: Record<(typeof SERIES)[number], string> = {
   P1: "#0ca30c",
   P2: "#0f8a7a",
   P3: "#a5820f",
