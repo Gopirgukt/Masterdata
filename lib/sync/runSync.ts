@@ -48,11 +48,11 @@ async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T)
 }
 
 /** Matches an incoming sheet row to an existing candidate row: by phone if present, else by name. */
-function findExisting(
-  existing: { id: string; name: string | null; phone: string | null; source_row_hash: string | null }[],
+function findExisting<T extends { name: string | null; phone: string | null }>(
+  existing: T[],
   name: string,
   phone: string | null,
-) {
+): T | undefined {
   if (phone) {
     return existing.find((e) => e.phone === phone);
   }
@@ -111,7 +111,7 @@ export async function syncCompany(company: Company): Promise<CompanySyncResult> 
 
   const { data: existingCandidates, error: fetchError } = await supabase
     .from("candidates")
-    .select("id, name, phone, source_row_hash")
+    .select("id, name, phone, source_row_hash, shared_to_company, shared_in_internal_sheet")
     .eq("company_id", company.id);
 
   if (fetchError) {
@@ -156,6 +156,7 @@ export async function syncCompany(company: Company): Promise<CompanySyncResult> 
           .from("candidates")
           .insert({
             ...mapped,
+            shared_in_internal_sheet: mapped.shared_to_company,
             company_id: company.id,
             source_row_hash: rowHash,
             last_synced_at: new Date().toISOString(),
@@ -168,25 +169,58 @@ export async function syncCompany(company: Company): Promise<CompanySyncResult> 
         }
         result.inserted++;
         if (inserted) {
-          existing.push({ id: inserted.id, name: mapped.name, phone: mapped.phone ?? null, source_row_hash: rowHash });
+          existing.push({
+            id: inserted.id,
+            name: mapped.name,
+            phone: mapped.phone ?? null,
+            source_row_hash: rowHash,
+            shared_to_company: mapped.shared_to_company,
+            shared_in_internal_sheet: mapped.shared_to_company,
+          });
         }
         continue;
       }
 
+      // "Shared" is true if EITHER the internal sheet says Yes OR the Company
+      // Sheet sync found the candidate there — recruiters often forget to flip
+      // the internal column (confirmed 2026-10-08), so a "No"/blank here must
+      // never undo a share the Company Sheet already proved. The internal
+      // sheet's own value is kept separately to show that gap on the dashboard.
+      const sharedInInternal = mapped.shared_to_company;
+      const sharedCombined = sharedInInternal || !!match.shared_to_company;
+
       if (match.source_row_hash === rowHash) {
         result.unchanged++;
+        // Row itself unchanged, but the stored internal-sheet flag can still
+        // be stale (e.g. backfilled by migration 014) — fix just that.
+        if (match.shared_in_internal_sheet !== sharedInInternal) {
+          await supabase
+            .from("candidates")
+            .update({ shared_in_internal_sheet: sharedInInternal, shared_to_company: sharedCombined })
+            .eq("id", match.id);
+          match.shared_in_internal_sheet = sharedInInternal;
+          match.shared_to_company = sharedCombined;
+        }
         continue;
       }
 
       const { error } = await supabase
         .from("candidates")
-        .update({ ...withoutBlankCompanySheetStatuses(mapped), source_row_hash: rowHash, last_synced_at: new Date().toISOString() })
+        .update({
+          ...withoutBlankCompanySheetStatuses(mapped),
+          shared_to_company: sharedCombined,
+          shared_in_internal_sheet: sharedInInternal,
+          source_row_hash: rowHash,
+          last_synced_at: new Date().toISOString(),
+        })
         .eq("id", match.id);
       if (error) {
         tabErrors.push(`[${tab}] Update failed for "${mapped.name}": ${error.message}`);
         continue;
       }
       match.source_row_hash = rowHash;
+      match.shared_to_company = sharedCombined;
+      match.shared_in_internal_sheet = sharedInInternal;
       result.updated++;
     }
   }

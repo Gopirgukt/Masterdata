@@ -31,8 +31,12 @@ export async function GET(request: NextRequest) {
 // recruiter clicking "Sync now" after the hiring company updated its sheet
 // saw nothing change (confirmed 2026-10-05: Sigmoid). Its own request, not
 // chained after the main sync, so each gets the full maxDuration.
-export async function POST() {
-  after(() => syncAllCompanySheets());
+// `?force=1` skips the 7-day "recently edited" gate and re-reads every Company
+// Sheet — for one-off backfills like migration 014's in_company_sheet, where
+// an untouched sheet still holds facts the database doesn't have yet.
+export async function POST(request: NextRequest) {
+  const force = request.nextUrl.searchParams.get("force") === "1";
+  after(() => syncAllCompanySheets({ force, concurrency: force ? 2 : undefined }));
 
   return NextResponse.json(
     { status: "accepted", message: "Company Sheet sync started in the background." },

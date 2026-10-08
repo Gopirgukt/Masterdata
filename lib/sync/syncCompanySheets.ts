@@ -106,7 +106,7 @@ async function syncOneCompanySheet(company: Company): Promise<CompanySheetSyncRe
   const supabase = createAdminClient();
   const { data: candidates } = await supabase
     .from("candidates")
-    .select("id, name, screening_status, tr1_status, tr2_status, hr_mr_status, hired_status, shared_to_company")
+    .select("id, name, screening_status, tr1_status, tr2_status, hr_mr_status, hired_status, shared_to_company, in_company_sheet")
     .eq("company_id", company.id);
 
   let matched = 0;
@@ -122,7 +122,12 @@ async function syncOneCompanySheet(company: Company): Promise<CompanySheetSyncRe
       const value = info[field];
       if (value && value !== candidate[field]) patch[field] = value;
     }
+    // Being in the Company Sheet at all is proof the profile was shared, even
+    // when the internal sheet's "Shared with the company" was never flipped
+    // to Yes. in_company_sheet records this source on its own so the
+    // dashboard can list exactly those not-marked-internally candidates.
     if (!candidate.shared_to_company) patch.shared_to_company = true;
+    if (!candidate.in_company_sheet) patch.in_company_sheet = true;
     if (Object.keys(patch).length === 0) continue;
 
     const { error } = await supabase.from("candidates").update(patch).eq("id", candidate.id);

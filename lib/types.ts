@@ -34,6 +34,9 @@ export type Candidate = {
   tech_remarks: string | null;
   recording_link: string | null;
   shared_to_company: boolean | null;
+  // migrations/014_shared_sources.sql — the two sources behind shared_to_company.
+  shared_in_internal_sheet?: boolean | null;
+  in_company_sheet?: boolean;
   company_decision: string | null;
   skills: string | null;
   tech_screening_date: string | null;
