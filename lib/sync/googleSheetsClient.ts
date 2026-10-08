@@ -155,6 +155,43 @@ export async function fetchSheetRows(
   return { headers: (headers ?? []).map((h) => (h ?? "").trim()), rows: rows as string[][] };
 }
 
+export type TabResult = { headers: string[]; rows: string[][] } | { error: string };
+
+/**
+ * Every registered tab of one company in two Sheets requests total — the
+ * (cached) tab list plus one values.batchGet — instead of one values.get per
+ * tab. Confirmed 2026-10-08: with per-tab reads, a busy run (Applix alone has
+ * 7 tabs) blew through Google's ~60 reads/minute quota, failing 14 companies
+ * and padding the run to 267s with 20s quota-retry sleeps. Tab names are
+ * resolved loosely first (same as fetchSheetRows), so a missing/renamed tab
+ * only fails that tab, not the whole batch.
+ */
+export async function fetchCompanyTabs(spreadsheetId: string, tabNames: string[]): Promise<Map<string, TabResult>> {
+  const sheets = getSheetsClient();
+  const result = new Map<string, TabResult>();
+  const resolved: { tab: string; title: string }[] = [];
+  for (const tab of tabNames) {
+    try {
+      resolved.push({ tab, title: await resolveActualTabName(sheets, spreadsheetId, tab) });
+    } catch (err) {
+      result.set(tab, { error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+  if (resolved.length === 0) return result;
+
+  try {
+    const data = await fetchManyTabsRows(
+      spreadsheetId,
+      resolved.map((r) => r.title),
+    );
+    for (const { tab, title } of resolved) result.set(tab, data.get(title) ?? { headers: [], rows: [] });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    for (const { tab } of resolved) result.set(tab, { error: message });
+  }
+  return result;
+}
+
 /**
  * Reads several tabs of the same spreadsheet in one API call instead of one
  * call per tab. Google's read quota is metered per request, not per row, so

@@ -1,5 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { fetchSheetRows, extractSpreadsheetId, getSpreadsheetModifiedTime } from "@/lib/sync/googleSheetsClient";
+import { fetchCompanyTabs, extractSpreadsheetId, getSpreadsheetModifiedTime } from "@/lib/sync/googleSheetsClient";
 import { mapSheetRow, isMarkedDuplicate } from "@/lib/sync/mapping";
 import { hashRow } from "@/lib/sync/hash";
 import type { Company } from "@/lib/types";
@@ -125,15 +125,16 @@ export async function syncCompany(company: Company): Promise<CompanySyncResult> 
   const existing = existingCandidates ?? [];
   const tabErrors: string[] = [];
 
+  // All tabs in one batched read — see fetchCompanyTabs for why.
+  const tabData = await fetchCompanyTabs(spreadsheetId, tabs);
+
   for (const tab of tabs) {
-    let headers: string[];
-    let rows: string[][];
-    try {
-      ({ headers, rows } = await fetchSheetRows(spreadsheetId, tab));
-    } catch (err) {
-      tabErrors.push(`[${tab}] Failed to read sheet: ${err instanceof Error ? err.message : String(err)}`);
+    const data = tabData.get(tab);
+    if (!data || "error" in data) {
+      tabErrors.push(`[${tab}] Failed to read sheet: ${data && "error" in data ? data.error : "no data returned"}`);
       continue;
     }
+    const { headers, rows } = data;
 
     for (const row of rows) {
       if (isMarkedDuplicate(row, headers)) {
