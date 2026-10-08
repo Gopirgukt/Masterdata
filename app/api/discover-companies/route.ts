@@ -23,3 +23,12 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({ status: "accepted", message: "Discovery started in the background." }, { status: 202 });
 }
+
+// Manual trigger with no secret — same trust model as POST /api/sync (the
+// dashboard has no auth layer). Lets a newly added company be picked up right
+// away instead of waiting for the daily cron.
+export async function POST() {
+  after(() => discoverNewCompanies());
+
+  return NextResponse.json({ status: "accepted", message: "Discovery started in the background." }, { status: 202 });
+}

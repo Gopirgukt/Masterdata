@@ -11,6 +11,12 @@ import { createAdminClient } from "@/lib/supabase/admin";
 // something that gets recreated.
 const MASTER_SHEET_ID = "19A6FoeqZcm4LofWPh1Wmvm5zGXLpSkSmCDvHlV3CmQs";
 const MASTER_TAB = "Tech interactions";
+// Second source: the same spreadsheet's "Main" tab (one row per requested
+// JD, with "Company Name" + "Internal Sheet Link"). Recruiters add a new
+// company here first and often never log it in Tech interactions — confirmed
+// 2026-10-08: 8 companies (Zigram, TurnB, Vriba Solutions, …) existed only in
+// Main and so were never discovered or synced.
+const MAIN_TAB = "Main";
 // Each candidate now costs one Sheets metadata call plus one batched
 // values.batchGet (see detectCandidateTabs) instead of one read per tab, so a
 // handful can run per pass without risking the quota storms a per-tab probe
@@ -68,7 +74,7 @@ async function detectCandidateTabs(spreadsheetId: string): Promise<string[]> {
 
 export type DiscoveryResult = { registered: string[]; failed: { name: string; error: string }[] };
 
-/** Scans the master "Tech interactions" log for companies not yet properly
+/** Scans the master sheet's "Tech interactions" log and "Main" tab for companies not yet properly
  * onboarded and registers them automatically — the fix for the recurring
  * "why isn't <company> syncing" gap, where a company shows up in the day's
  * interview log before anyone remembers to onboard it by hand. Runs before
@@ -91,26 +97,44 @@ export async function discoverNewCompanies(): Promise<DiscoveryResult> {
   const result: DiscoveryResult = { registered: [], failed: [] };
   const supabase = createAdminClient();
 
-  let headers: string[];
-  let rows: string[][];
-  try {
-    ({ headers, rows } = await fetchSheetRows(MASTER_SHEET_ID, MASTER_TAB));
-  } catch {
-    return result; // Master sheet unreachable this run — don't fail the whole sync over it.
-  }
-
-  const companyCol = headers.findIndex((h) => h.trim().toLowerCase() === "company");
-  const sheetLinkCol = headers.findIndex((h) => h.trim().toLowerCase() === "sheet link");
-  if (companyCol === -1 || sheetLinkCol === -1) return result;
-
-  const seenInLog = new Map<string, string>();
-  for (const row of rows) {
-    const name = (row[companyCol] ?? "").trim();
-    const link = (row[sheetLinkCol] ?? "").trim();
-    if (name && link && !seenInLog.has(name)) seenInLog.set(name, link);
-  }
-
   const { data: existing } = await supabase.from("companies").select("name, sheet_id, sheet_tab");
+
+  // name -> internal sheet link, from Tech interactions first (its names are
+  // the ones already used across the dashboard), then Main for anything new.
+  const seenInLog = new Map<string, string>();
+  const seenSheetIds = new Set<string>();
+  // A company already in the database (in any state) keeps its existing name
+  // even when Main spells it differently ("Mavenark" vs "MavenArk", "V
+  // Construct" vs "VConstruct") — matched by spreadsheet, not by spelling.
+  const existingNameBySheet = new Map(
+    (existing ?? []).filter((c) => c.sheet_id).map((c) => [c.sheet_id!, c.name] as const),
+  );
+  const addFromLog = (rawName: string, rawLink: string) => {
+    const link = rawLink.trim();
+    if (!rawName.trim() || !link.includes("/spreadsheets/d/")) return;
+    const sheetId = extractSpreadsheetId(link);
+    if (seenSheetIds.has(sheetId)) return; // Same spreadsheet under another spelling — already queued.
+    const name = existingNameBySheet.get(sheetId) ?? rawName.trim();
+    if (seenInLog.has(name)) return;
+    seenInLog.set(name, link);
+    seenSheetIds.add(sheetId);
+  };
+
+  const readTab = async (tab: string, nameHeader: string, linkHeader: string) => {
+    try {
+      const { headers, rows } = await fetchSheetRows(MASTER_SHEET_ID, tab);
+      const nameCol = headers.findIndex((h) => h.trim().toLowerCase() === nameHeader);
+      const linkCol = headers.findIndex((h) => h.trim().toLowerCase() === linkHeader);
+      if (nameCol === -1 || linkCol === -1) return;
+      for (const row of rows) addFromLog(row[nameCol] ?? "", row[linkCol] ?? "");
+    } catch {
+      // That tab unreachable this run — the other source can still discover
+      // companies, and this one is retried next run.
+    }
+  };
+  await readTab(MASTER_TAB, "company", "sheet link");
+  await readTab(MAIN_TAB, "company name", "internal sheet link");
+  if (seenInLog.size === 0) return result;
   const onboardedNames = new Set(
     (existing ?? []).filter((c) => c.sheet_tab).map((c) => c.name.trim().toLowerCase()),
   );
