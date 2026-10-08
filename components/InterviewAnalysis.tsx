@@ -10,33 +10,31 @@ import { StatTile } from "@/components/StatTile";
 import { LoadingRow, EmptyRow } from "@/components/Table";
 import type { CandidateWithCompany } from "@/lib/types";
 
-// Same rules as Company Analytics: a later round counts as cleared only when
-// its status is literally "Selected" (other values seen: Rejected, No Show,
-// Hold, Yet to Schedule, Scheduled, Completed & Waiting for the Results), and
-// the last stage is literally "Hired".
-function cleared(status: string | null): boolean {
-  return (status ?? "").trim().toLowerCase() === "selected";
-}
-function hired(status: string | null): boolean {
-  return (status ?? "").trim().toLowerCase() === "hired";
-}
+// The company's own rounds after we share a profile, in order. A round counts
+// as completed only with a decision — "Selected" or "Rejected" (same literal
+// values Company Analytics uses); No Show, Hold, Scheduled, Yet to Schedule,
+// "Completed & Waiting for the Results" etc. are still pending.
+const STAGES = [
+  { key: "screening", label: "Initial screening", field: "screening_status" },
+  { key: "tr1", label: "TR 1", field: "tr1_status" },
+  { key: "tr2", label: "TR 2", field: "tr2_status" },
+  { key: "hrMr", label: "HR/MR", field: "hr_mr_status" },
+] as const;
+type StageKey = (typeof STAGES)[number]["key"];
 
+// Only these tech outcomes get shared with the company (confirmed with the
+// user 2026-10-08) — a Reject that's also flagged shared is a data slip and
+// is counted separately, not mixed into the funnel.
+const SHAREABLE = ["P1", "P2", "P3", "Hold"] as const;
+type Shareable = (typeof SHAREABLE)[number];
+
+type StageTally = { selected: number; rejected: number; pending: number };
 type Row = {
   company: string;
   interactions: number;
-  P1: number;
-  P2: number;
-  P3: number;
-  Hold: number;
-  Reject: number;
   shared: number;
-  sharedP1: number;
-  sharedP2: number;
-  sharedP3: number;
-  screening: number;
-  tr1: number;
-  tr2: number;
-  hrMr: number;
+  sharedBy: Record<Shareable, number>;
+  stages: Record<StageKey, StageTally>;
   hired: number;
 };
 
@@ -44,40 +42,61 @@ function emptyRow(company: string): Row {
   return {
     company,
     interactions: 0,
-    P1: 0,
-    P2: 0,
-    P3: 0,
-    Hold: 0,
-    Reject: 0,
     shared: 0,
-    sharedP1: 0,
-    sharedP2: 0,
-    sharedP3: 0,
-    screening: 0,
-    tr1: 0,
-    tr2: 0,
-    hrMr: 0,
+    sharedBy: { P1: 0, P2: 0, P3: 0, Hold: 0 },
+    stages: {
+      screening: { selected: 0, rejected: 0, pending: 0 },
+      tr1: { selected: 0, rejected: 0, pending: 0 },
+      tr2: { selected: 0, rejected: 0, pending: 0 },
+      hrMr: { selected: 0, rejected: 0, pending: 0 },
+    },
     hired: 0,
   };
 }
 
-const NUMERIC_KEYS = Object.keys(emptyRow("")).filter((k) => k !== "company") as Exclude<keyof Row, "company">[];
+function addInto(into: Row, r: Row) {
+  into.interactions += r.interactions;
+  into.shared += r.shared;
+  for (const k of SHAREABLE) into.sharedBy[k] += r.sharedBy[k];
+  for (const s of STAGES) {
+    into.stages[s.key].selected += r.stages[s.key].selected;
+    into.stages[s.key].rejected += r.stages[s.key].rejected;
+    into.stages[s.key].pending += r.stages[s.key].pending;
+  }
+  into.hired += r.hired;
+}
 
 function pct(part: number, whole: number): string {
   return whole > 0 ? `${Math.round((part / whole) * 100)}%` : "-";
 }
 
 const th = "px-3 py-2.5 text-left font-medium text-ink-secondary whitespace-nowrap";
-const groupTh = "px-3 py-1.5 text-left text-xs font-medium uppercase tracking-wide text-ink-muted border-l border-line";
+const groupTh = "px-3 py-1.5 text-left text-xs font-medium uppercase tracking-wide text-ink-muted";
 const td = "px-3 py-2.5 border-t border-line whitespace-nowrap";
 
+/** One round's result in a single cell: selected (green) / rejected (red),
+ * with the select % of completed underneath. */
+function StageCell({ t, bold }: { t: StageTally; bold?: boolean }) {
+  const done = t.selected + t.rejected;
+  if (done === 0 && t.pending === 0) return <td className={`${td} border-l border-line text-ink-muted`}>-</td>;
+  return (
+    <td className={`${td} border-l border-line ${bold ? "font-semibold" : ""}`}>
+      <span className={t.selected > 0 ? "text-success" : "text-ink-muted"}>{t.selected}</span>
+      <span className="text-ink-muted"> / </span>
+      <span className={t.rejected > 0 ? "text-danger" : "text-ink-muted"}>{t.rejected}</span>
+      <div className="text-xs font-normal text-ink-muted">
+        {done > 0 ? `${pct(t.selected, done)} sel` : ""}
+        {t.pending > 0 ? `${done > 0 ? " · " : ""}${t.pending} pending` : ""}
+      </div>
+    </td>
+  );
+}
+
 /**
- * Per-company view of tech-screened candidates in the selected range (by
- * interview date) and how far they got after being shared with the company:
- * tech outcome (P1/P2/P3/Hold/Reject, select/reject %) → shared to company
- * (split by P1/P2/P3) → cleared Screening/TR1/TR2/HR-MR → Hired.
- * "Interactions" = screenings with a recorded outcome — the same "completed"
- * rule as the table above and Day Outcome.
+ * What happens after we share a profile: per company, tech-screened
+ * candidates in the selected range (by interview date) → shared (P1/P2/P3/
+ * Hold) → each company round (Initial screening, TR 1, TR 2, HR/MR) with
+ * selected/rejected and select/reject % of those who completed it → Hired.
  */
 export function InterviewAnalysis({
   start,
@@ -126,81 +145,51 @@ export function InterviewAnalysis({
   ).sort((a, b) => a.localeCompare(b));
 
   const byCompany = new Map<string, Row>();
+  let rejectedButShared = 0;
   for (const c of candidates) {
     if (interviewer && c.tech_screening_taken_by !== interviewer) continue;
     const outcome = categorizeStatus(c.tech_status);
-    if (outcome === "Other") continue; // Not completed yet.
+    if (outcome === "Other") continue; // Tech screening not completed yet.
     const company = c.companies?.name ?? "Unknown";
     const row = byCompany.get(company) ?? emptyRow(company);
-    row.interactions++;
-    row[outcome]++;
-    if (c.shared_to_company) {
-      row.shared++;
-      if (outcome === "P1") row.sharedP1++;
-      if (outcome === "P2") row.sharedP2++;
-      if (outcome === "P3") row.sharedP3++;
-    }
-    if (cleared(c.screening_status)) row.screening++;
-    if (cleared(c.tr1_status)) row.tr1++;
-    if (cleared(c.tr2_status)) row.tr2++;
-    if (cleared(c.hr_mr_status)) row.hrMr++;
-    if (hired(c.hired_status)) row.hired++;
     byCompany.set(company, row);
-  }
-  const rows = Array.from(byCompany.values()).sort((a, b) => b.interactions - a.interactions);
-  const total = rows.reduce((sum, r) => {
-    for (const k of NUMERIC_KEYS) sum[k] += r[k];
-    return sum;
-  }, emptyRow("Total"));
-  const selected = (r: Row) => r.P1 + r.P2 + r.P3;
+    row.interactions++;
 
-  // No "Selected" step: Hold/Reject candidates are sometimes shared too
-  // (confirmed 2026-10-08: 36 rejected-but-shared), so Selected < Shared and
-  // a funnel with both would rise mid-way. Select % lives in the tiles.
+    if (!c.shared_to_company) continue;
+    if (outcome === "Reject") {
+      rejectedButShared++;
+      continue;
+    }
+    row.shared++;
+    row.sharedBy[outcome]++;
+    for (const s of STAGES) {
+      const status = (c[s.field] ?? "").trim().toLowerCase();
+      if (!status) continue; // Hasn't reached this round.
+      if (status === "selected") row.stages[s.key].selected++;
+      else if (status === "rejected") row.stages[s.key].rejected++;
+      else row.stages[s.key].pending++;
+    }
+    if ((c.hired_status ?? "").trim().toLowerCase() === "hired") row.hired++;
+  }
+  const rows = Array.from(byCompany.values()).sort((a, b) => b.shared - a.shared || b.interactions - a.interactions);
+  const total = emptyRow("Total");
+  for (const r of rows) addInto(total, r);
+
   const funnel = [
-    { label: "Interactions", value: total.interactions },
+    { label: "Tech completed", value: total.interactions },
     { label: "Shared to company", value: total.shared },
-    { label: "Cleared screening", value: total.screening },
-    { label: "Cleared TR 1", value: total.tr1 },
-    { label: "Cleared TR 2", value: total.tr2 },
-    { label: "Cleared HR/MR", value: total.hrMr },
+    ...STAGES.map((s) => ({ label: `${s.label} selected`, value: total.stages[s.key].selected })),
     { label: "Hired", value: total.hired },
   ];
-
-  const renderCells = (r: Row, bold = false) => {
-    const tone = (n: number, cls: string) => (n > 0 ? cls : "text-ink-muted");
-    const b = bold ? " font-semibold" : "";
-    return (
-      <>
-        <td className={`${td} text-ink${b}`}>{r.interactions}</td>
-        <td className={`${td} border-l border-line ${tone(r.P1, "text-success")}${b}`}>{r.P1 || "-"}</td>
-        <td className={`${td} ${tone(r.P2, "text-success")}${b}`}>{r.P2 || "-"}</td>
-        <td className={`${td} ${tone(r.P3, "text-success")}${b}`}>{r.P3 || "-"}</td>
-        <td className={`${td} ${tone(r.Hold, "text-accent")}${b}`}>{r.Hold || "-"}</td>
-        <td className={`${td} ${tone(r.Reject, "text-danger")}${b}`}>{r.Reject || "-"}</td>
-        <td className={`${td} text-ink${b}`}>{pct(selected(r), r.interactions)}</td>
-        <td className={`${td} text-ink${b}`}>{pct(r.Reject, r.interactions)}</td>
-        <td className={`${td} border-l border-line text-ink${b}`}>{r.shared || "-"}</td>
-        <td className={`${td} text-ink${b}`}>{r.sharedP1 || "-"}</td>
-        <td className={`${td} text-ink${b}`}>{r.sharedP2 || "-"}</td>
-        <td className={`${td} text-ink${b}`}>{r.sharedP3 || "-"}</td>
-        <td className={`${td} border-l border-line text-ink${b}`}>{r.screening || "-"}</td>
-        <td className={`${td} text-ink${b}`}>{r.tr1 || "-"}</td>
-        <td className={`${td} text-ink${b}`}>{r.tr2 || "-"}</td>
-        <td className={`${td} text-ink${b}`}>{r.hrMr || "-"}</td>
-        <td className={`${td} ${tone(r.hired, "text-success")} font-medium${b}`}>{r.hired || "-"}</td>
-      </>
-    );
-  };
 
   return (
     <section className="flex flex-col gap-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-base font-medium text-ink">Analysis</h2>
+          <h2 className="text-base font-medium text-ink">Analysis — after sharing to company</h2>
           <p className="mt-1 text-sm text-ink-secondary">
-            Completed tech screenings in this date range (by interview date) per company, and how far those candidates
-            got after being shared.
+            Candidates tech-screened in this date range (by interview date), the P1/P2/P3/Hold profiles shared with
+            each company, and how they did in the company&rsquo;s own rounds.
           </p>
         </div>
         <SelectFilter
@@ -211,63 +200,115 @@ export function InterviewAnalysis({
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
-        <StatTile label="Interactions" value={loading ? "…" : total.interactions} accent="accent" />
-        <StatTile label="Select %" value={loading ? "…" : pct(selected(total), total.interactions)} accent="success" />
-        <StatTile label="Reject %" value={loading ? "…" : pct(total.Reject, total.interactions)} accent="danger" />
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <StatTile label="Tech completed" value={loading ? "…" : total.interactions} accent="accent" />
         <StatTile label="Shared to company" value={loading ? "…" : total.shared} accent="warning" />
         <StatTile label="Hired" value={loading ? "…" : total.hired} accent="success" />
+        <StatTile label="Shared → hired" value={loading ? "…" : pct(total.hired, total.shared)} accent="success" />
       </div>
 
-      {!loading && total.interactions > 0 && <BarChartCard title="Interaction → hire funnel" data={funnel} />}
-
+      {/* Round-by-round selection vs rejection — the headline view. */}
       <div className="overflow-x-auto rounded-lg border border-line bg-surface">
         <table className="w-full text-sm">
           <thead className="bg-surface-hover">
-            <tr>
-              <th className={`${groupTh.replace(" border-l border-line", "")} sticky left-0 z-10 bg-surface-hover`} />
-              <th className={groupTh.replace(" border-l border-line", "")} />
-              <th className={groupTh} colSpan={7}>
-                Tech outcome
-              </th>
-              <th className={groupTh} colSpan={4}>
-                Shared to company
-              </th>
-              <th className={groupTh} colSpan={5}>
-                Cleared after sharing
-              </th>
-            </tr>
             <tr className="border-b border-line">
-              <th className={`${th} sticky left-0 z-10 bg-surface-hover`}>Company</th>
-              <th className={th}>Interactions</th>
-              <th className={`${th} border-l border-line`}>P1</th>
-              <th className={th}>P2</th>
-              <th className={th}>P3</th>
-              <th className={th}>Hold</th>
-              <th className={th}>Reject</th>
+              <th className={th}>Company round</th>
+              <th className={th}>Completed</th>
+              <th className={th}>Selected</th>
+              <th className={th}>Rejected</th>
+              <th className={th}>Pending</th>
               <th className={th}>Select %</th>
               <th className={th}>Reject %</th>
-              <th className={`${th} border-l border-line`}>Total</th>
-              <th className={th}>P1</th>
-              <th className={th}>P2</th>
-              <th className={th}>P3</th>
-              <th className={`${th} border-l border-line`}>Screening</th>
-              <th className={th}>TR 1</th>
-              <th className={th}>TR 2</th>
-              <th className={th}>HR/MR</th>
-              <th className={th}>Hired</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <LoadingRow colSpan={18} />
+              <LoadingRow colSpan={7} />
+            ) : (
+              <>
+                {STAGES.map((s) => {
+                  const t = total.stages[s.key];
+                  const done = t.selected + t.rejected;
+                  return (
+                    <tr key={s.key} className="transition-colors hover:bg-surface-hover">
+                      <td className={`${td} font-medium text-ink`}>{s.label}</td>
+                      <td className={`${td} text-ink`}>{done || "-"}</td>
+                      <td className={`${td} ${t.selected ? "text-success" : "text-ink-muted"}`}>{t.selected || "-"}</td>
+                      <td className={`${td} ${t.rejected ? "text-danger" : "text-ink-muted"}`}>{t.rejected || "-"}</td>
+                      <td className={`${td} text-ink-secondary`}>{t.pending || "-"}</td>
+                      <td className={`${td} font-medium text-success`}>{pct(t.selected, done)}</td>
+                      <td className={`${td} font-medium text-danger`}>{pct(t.rejected, done)}</td>
+                    </tr>
+                  );
+                })}
+                <tr>
+                  <td className={`${td} font-medium text-ink`}>Hired</td>
+                  <td className={`${td} font-semibold text-success`} colSpan={6}>
+                    {total.hired} of {total.shared} shared ({pct(total.hired, total.shared)})
+                  </td>
+                </tr>
+              </>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {!loading && total.interactions > 0 && <BarChartCard title="Tech completed → hired" data={funnel} />}
+
+      {/* Per company. */}
+      <div className="overflow-x-auto rounded-lg border border-line bg-surface">
+        <table className="w-full text-sm">
+          <thead className="bg-surface-hover">
+            <tr>
+              <th className={`${groupTh} sticky left-0 z-10 bg-surface-hover`} />
+              <th className={groupTh} />
+              <th className={`${groupTh} border-l border-line`} colSpan={5}>
+                Shared to company
+              </th>
+              <th className={`${groupTh} border-l border-line`} colSpan={STAGES.length}>
+                Company rounds — selected / rejected
+              </th>
+              <th className={`${groupTh} border-l border-line`} />
+            </tr>
+            <tr className="border-b border-line">
+              <th className={`${th} sticky left-0 z-10 bg-surface-hover`}>Company</th>
+              <th className={th}>Tech completed</th>
+              <th className={`${th} border-l border-line`}>Total</th>
+              {SHAREABLE.map((k) => (
+                <th key={k} className={th}>
+                  {k}
+                </th>
+              ))}
+              {STAGES.map((s) => (
+                <th key={s.key} className={`${th} border-l border-line`}>
+                  {s.label}
+                </th>
+              ))}
+              <th className={`${th} border-l border-line`}>Hired</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <LoadingRow colSpan={7 + STAGES.length + 1} />
             ) : rows.length === 0 ? (
-              <EmptyRow colSpan={18} label="No completed tech screenings in this range" />
+              <EmptyRow colSpan={7 + STAGES.length + 1} label="No completed tech screenings in this range" />
             ) : (
               rows.map((r) => (
                 <tr key={r.company} className="transition-colors hover:bg-surface-hover">
                   <td className={`${td} sticky left-0 z-10 bg-surface font-medium text-ink`}>{r.company}</td>
-                  {renderCells(r)}
+                  <td className={`${td} text-ink`}>{r.interactions}</td>
+                  <td className={`${td} border-l border-line text-ink`}>{r.shared || "-"}</td>
+                  {SHAREABLE.map((k) => (
+                    <td key={k} className={`${td} ${r.sharedBy[k] ? "text-ink" : "text-ink-muted"}`}>
+                      {r.sharedBy[k] || "-"}
+                    </td>
+                  ))}
+                  {STAGES.map((s) => (
+                    <StageCell key={s.key} t={r.stages[s.key]} />
+                  ))}
+                  <td className={`${td} border-l border-line ${r.hired ? "font-medium text-success" : "text-ink-muted"}`}>
+                    {r.hired || "-"}
+                  </td>
                 </tr>
               ))
             )}
@@ -276,12 +317,30 @@ export function InterviewAnalysis({
             <tfoot className="bg-surface-hover">
               <tr>
                 <td className={`${td} sticky left-0 z-10 bg-surface-hover font-semibold text-ink`}>Total</td>
-                {renderCells(total, true)}
+                <td className={`${td} font-semibold text-ink`}>{total.interactions}</td>
+                <td className={`${td} border-l border-line font-semibold text-ink`}>{total.shared}</td>
+                {SHAREABLE.map((k) => (
+                  <td key={k} className={`${td} font-semibold text-ink`}>
+                    {total.sharedBy[k] || "-"}
+                  </td>
+                ))}
+                {STAGES.map((s) => (
+                  <StageCell key={s.key} t={total.stages[s.key]} bold />
+                ))}
+                <td className={`${td} border-l border-line font-semibold text-success`}>{total.hired || "-"}</td>
               </tr>
             </tfoot>
           )}
         </table>
       </div>
+
+      {!loading && rejectedButShared > 0 && (
+        <p className="text-xs text-ink-muted">
+          {rejectedButShared} candidate{rejectedButShared === 1 ? " was" : "s were"} rejected at tech screening but
+          also marked &ldquo;shared with the company&rdquo; in the sheet — left out of the counts above. Worth checking
+          the sheet for those rows.
+        </p>
+      )}
     </section>
   );
 }
