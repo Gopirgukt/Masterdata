@@ -61,7 +61,7 @@ export const NAV_ITEMS = [
   },
   {
     href: "/dashboard/companies",
-    label: "Company Analytics",
+    label: "Companies",
     icon: (
       <Icon>
         <path d="M3 17.5V4.5a1 1 0 011-1h5a1 1 0 011 1v13M10 17.5V9a1 1 0 011-1h5a1 1 0 011 1v8.5M3 17.5h14" />
@@ -112,16 +112,6 @@ export const NAV_ITEMS = [
     icon: (
       <Icon>
         <path d="M3 4.5h14L11.5 11v5l-3 1.5v-6.5z" />
-      </Icon>
-    ),
-  },
-  {
-    href: "/dashboard/company-sheet",
-    label: "Company Sheet",
-    icon: (
-      <Icon>
-        <rect x="4" y="2.5" width="12" height="15" rx="1.5" />
-        <path d="M7 6.5h6M7 9.5h6M7 12.5h3.5" />
       </Icon>
     ),
   },
