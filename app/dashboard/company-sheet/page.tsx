@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useCompanies } from "@/lib/useCompanies";
 import { fetchAllRows } from "@/lib/fetchAllRows";
@@ -12,6 +13,7 @@ import { ShowMoreButton } from "@/components/ShowMoreButton";
 import { usePagedReveal } from "@/lib/usePagedReveal";
 import { Table, Th, Td, Tr, EmptyRow, LoadingRow } from "@/components/Table";
 import { CandidateFeedbackModal } from "@/components/CandidateFeedbackModal";
+import { Badge } from "@/components/Badge";
 import type { CandidateWithCompany } from "@/lib/types";
 
 const ROUND_FIELDS = [
@@ -22,11 +24,20 @@ const ROUND_FIELDS = [
   { key: "hired_status", label: "Hired" },
 ] as const;
 
-export default function CompanySheetPage() {
+/** In the Company Sheet (so it really was shared) but the internal sheet's
+ * "Shared with the company" column was never set to Yes — the recurring gap
+ * recruiters asked to see (2026-10-08). */
+function notMarkedInternally(c: CandidateWithCompany): boolean {
+  return !!c.in_company_sheet && c.shared_in_internal_sheet === false;
+}
+
+function CompanySheetInner() {
+  const searchParams = useSearchParams();
   const companies = useCompanies();
   const [candidates, setCandidates] = useState<CandidateWithCompany[]>([]);
   const [loading, setLoading] = useState(true);
-  const [companyId, setCompanyId] = useState("");
+  const [companyId, setCompanyId] = useState(searchParams.get("company") ?? "");
+  const [onlyNotMarked, setOnlyNotMarked] = useState(searchParams.get("notMarked") === "1");
   const [roundFilters, setRoundFilters] = useState<Record<string, string>>({});
   const [feedbackFor, setFeedbackFor] = useState<CandidateWithCompany | null>(null);
   const syncVersion = useSyncVersion();
@@ -38,7 +49,7 @@ export default function CompanySheetPage() {
       supabase
         .from("candidates")
         .select(
-          "id, name, company_id, companies(name), screening_status, tr1_status, tr2_status, hr_mr_status, hired_status, job_role, call_done_by, call_date, call_status, call_remarks, interested, tr_status, tr_tech_rating, tr_comm_rating, tr_remarks, tech_screening_taken_by, tech_status, tech_tech_rating, tech_comm_rating, tech_remarks",
+          "id, name, company_id, companies(name), shared_in_internal_sheet, in_company_sheet, screening_status, tr1_status, tr2_status, hr_mr_status, hired_status, job_role, call_done_by, call_date, call_status, call_remarks, interested, tr_status, tr_tech_rating, tr_comm_rating, tr_remarks, tech_screening_taken_by, tech_status, tech_tech_rating, tech_comm_rating, tech_remarks",
         )
         .eq("shared_to_company", true)
         .range(start, end),
@@ -69,6 +80,7 @@ export default function CompanySheetPage() {
   const filtered = candidates
     .filter((c) => {
       if (companyId && c.company_id !== companyId) return false;
+      if (onlyNotMarked && !notMarkedInternally(c)) return false;
       const record = c as unknown as Record<string, string | null>;
       for (const { key } of ROUND_FIELDS) {
         const wanted = roundFilters[key];
@@ -82,7 +94,8 @@ export default function CompanySheetPage() {
     new Set(candidates.filter(hasAnyRoundData).map((c) => c.companies?.name).filter(Boolean)),
   ) as string[];
 
-  const filterKey = `${companyId}|${JSON.stringify(roundFilters)}`;
+  const notMarkedCount = candidates.filter((c) => (!companyId || c.company_id === companyId) && notMarkedInternally(c)).length;
+  const filterKey = `${companyId}|${onlyNotMarked}|${JSON.stringify(roundFilters)}`;
   const { visible, showMore, total, visibleCount } = usePagedReveal(filtered, 30, filterKey);
 
   return (
@@ -98,6 +111,17 @@ export default function CompanySheetPage() {
             placeholder={`All ${label}`}
           />
         ))}
+        <button
+          onClick={() => setOnlyNotMarked((v) => !v)}
+          aria-pressed={onlyNotMarked}
+          className={`rounded-md border px-3 py-2 text-sm transition-colors ${
+            onlyNotMarked
+              ? "border-warning bg-warning-soft text-warning"
+              : "border-line-strong bg-surface text-ink-secondary hover:border-ink-muted hover:text-ink"
+          }`}
+        >
+          Not marked &ldquo;Yes&rdquo; in internal sheet{loading ? "" : ` (${notMarkedCount})`}
+        </button>
       </div>
 
       {!loading && companiesWithRoundData.length > 0 && (
@@ -116,6 +140,7 @@ export default function CompanySheetPage() {
           <tr>
             <Th>Candidate</Th>
             <Th>Company</Th>
+            <Th>Internal sheet</Th>
             {ROUND_FIELDS.map(({ key, label }) => (
               <Th key={key}>{label}</Th>
             ))}
@@ -124,9 +149,9 @@ export default function CompanySheetPage() {
         </thead>
         <tbody>
           {loading ? (
-            <LoadingRow colSpan={3 + ROUND_FIELDS.length} />
+            <LoadingRow colSpan={4 + ROUND_FIELDS.length} />
           ) : visible.length === 0 ? (
-            <EmptyRow colSpan={3 + ROUND_FIELDS.length} />
+            <EmptyRow colSpan={4 + ROUND_FIELDS.length} />
           ) : (
             visible.map((r) => {
               const record = r as unknown as Record<string, string | null>;
@@ -134,6 +159,15 @@ export default function CompanySheetPage() {
                 <Tr key={r.id}>
                   <Td className="font-medium">{dashIfEmpty(r.name)}</Td>
                   <Td>{r.companies?.name ?? "-"}</Td>
+                  <Td>
+                    {notMarkedInternally(r) ? (
+                      <Badge tone="warning">Not marked</Badge>
+                    ) : r.shared_in_internal_sheet ? (
+                      "Yes"
+                    ) : (
+                      "-"
+                    )}
+                  </Td>
                   {ROUND_FIELDS.map(({ key }) => (
                     <Td key={key} className={statusToneClass(record[key])}>
                       {dashIfEmpty(record[key])}
@@ -163,5 +197,13 @@ export default function CompanySheetPage() {
 
       <ShowMoreButton visibleCount={visibleCount} total={total} onClick={showMore} />
     </div>
+  );
+}
+
+export default function CompanySheetPage() {
+  return (
+    <Suspense>
+      <CompanySheetInner />
+    </Suspense>
   );
 }

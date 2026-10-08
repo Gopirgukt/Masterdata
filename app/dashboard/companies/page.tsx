@@ -9,6 +9,7 @@ import { useSyncVersion } from "@/lib/useSyncVersion";
 import { Table, Th, Td, Tr, EmptyRow, LoadingRow } from "@/components/Table";
 import { StatTile } from "@/components/StatTile";
 import { SelectFilter } from "@/components/SelectFilter";
+import Link from "next/link";
 import type { Candidate } from "@/lib/types";
 
 function successTone(pct: number): string {
@@ -34,6 +35,9 @@ type CompanyRow = {
   id: string;
   name: string;
   total: number;
+  shared: number;
+  /** In the Company Sheet but never marked "Yes" in the internal sheet. */
+  notMarked: number;
   selected: number;
   rejected: number;
   screening: number;
@@ -59,7 +63,7 @@ export default function CompanyAnalyticsPage() {
     fetchAllRows<Candidate>((start, end) =>
       supabase
         .from("candidates")
-        .select("id, company_id, tech_status, screening_status, tr1_status, tr2_status, hr_mr_status, hired_status")
+        .select("id, company_id, tech_status, shared_to_company, shared_in_internal_sheet, in_company_sheet, screening_status, tr1_status, tr2_status, hr_mr_status, hired_status")
         .range(start, end),
     ).then((data) => {
       setCandidates(data);
@@ -79,6 +83,8 @@ export default function CompanyAnalyticsPage() {
   );
 
   const totalHired = filteredCandidates.filter((c) => isHired(c.hired_status)).length;
+  const totalShared = filteredCandidates.filter((c) => c.shared_to_company).length;
+  const totalNotMarked = filteredCandidates.filter((c) => c.in_company_sheet && c.shared_in_internal_sheet === false).length;
 
   const rows: CompanyRow[] = companies.map((c) => {
     const forCompany = filteredCandidates.filter((cand) => cand.company_id === c.id);
@@ -89,6 +95,8 @@ export default function CompanyAnalyticsPage() {
       id: c.id,
       name: c.name,
       total,
+      shared: forCompany.filter((cand) => cand.shared_to_company).length,
+      notMarked: forCompany.filter((cand) => cand.in_company_sheet && cand.shared_in_internal_sheet === false).length,
       selected,
       rejected,
       screening: forCompany.filter((cand) => isSelected(cand.screening_status)).length,
@@ -101,8 +109,10 @@ export default function CompanyAnalyticsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 max-w-xl">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatTile label="Total Hired" value={loading ? "…" : totalHired} accent="success" />
+        <StatTile label="Shared to company" value={loading ? "…" : totalShared} accent="accent" />
+        <StatTile label="Not marked in internal sheet" value={loading ? "…" : totalNotMarked} accent="warning" />
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -116,6 +126,8 @@ export default function CompanyAnalyticsPage() {
           <tr>
             <Th>Company</Th>
             <Th>Total</Th>
+            <Th>Shared</Th>
+            <Th>Not marked internally</Th>
             <Th>Selected</Th>
             <Th>Rejected</Th>
             <Th>Success %</Th>
@@ -128,9 +140,9 @@ export default function CompanyAnalyticsPage() {
         </thead>
         <tbody>
           {loading ? (
-            <LoadingRow colSpan={10} />
+            <LoadingRow colSpan={12} />
           ) : rows.length === 0 ? (
-            <EmptyRow colSpan={10} />
+            <EmptyRow colSpan={12} />
           ) : (
             rows.map((r) => {
               const successPct = r.total > 0 ? Math.round((r.selected / r.total) * 100) : 0;
@@ -138,6 +150,21 @@ export default function CompanyAnalyticsPage() {
                 <Tr key={r.id} onClick={() => router.push(`/dashboard/search?company=${r.id}`)}>
                   <Td>{r.name}</Td>
                   <Td>{r.total}</Td>
+                  <Td>{r.shared || "-"}</Td>
+                  <Td>
+                    {r.notMarked > 0 ? (
+                      <Link
+                        href={`/dashboard/company-sheet?company=${r.id}&notMarked=1`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="font-medium text-warning hover:underline"
+                        title="In the Company Sheet but not marked Yes in the internal sheet — click to see who"
+                      >
+                        {r.notMarked}
+                      </Link>
+                    ) : (
+                      "-"
+                    )}
+                  </Td>
                   <Td>{r.selected}</Td>
                   <Td>{r.rejected}</Td>
                   <Td className={`font-medium ${successTone(successPct)}`}>{successPct}%</Td>
