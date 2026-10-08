@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { categorizeStatus } from "@/lib/format";
 import { fetchAllRows } from "@/lib/fetchAllRows";
@@ -28,42 +28,45 @@ type StageKey = (typeof STAGES)[number]["key"];
 const SHAREABLE = ["P1", "P2", "P3", "Hold"] as const;
 type Shareable = (typeof SHAREABLE)[number];
 
-type StageTally = { selected: number; rejected: number; pending: number };
+// Every count is kept as the list of candidate names behind it, so hovering a
+// number can show exactly who it is (asked for 2026-10-08) and the number and
+// the list can never disagree.
+type Names = string[];
+type StageTally = { selected: Names; rejected: Names; pending: Names };
 type Row = {
   company: string;
-  interactions: number;
-  shared: number;
-  sharedBy: Record<Shareable, number>;
+  interactions: Names;
+  shared: Names;
+  sharedBy: Record<Shareable, Names>;
   stages: Record<StageKey, StageTally>;
-  hired: number;
+  hired: Names;
 };
+
+function emptyStage(): StageTally {
+  return { selected: [], rejected: [], pending: [] };
+}
 
 function emptyRow(company: string): Row {
   return {
     company,
-    interactions: 0,
-    shared: 0,
-    sharedBy: { P1: 0, P2: 0, P3: 0, Hold: 0 },
-    stages: {
-      screening: { selected: 0, rejected: 0, pending: 0 },
-      tr1: { selected: 0, rejected: 0, pending: 0 },
-      tr2: { selected: 0, rejected: 0, pending: 0 },
-      hrMr: { selected: 0, rejected: 0, pending: 0 },
-    },
-    hired: 0,
+    interactions: [],
+    shared: [],
+    sharedBy: { P1: [], P2: [], P3: [], Hold: [] },
+    stages: { screening: emptyStage(), tr1: emptyStage(), tr2: emptyStage(), hrMr: emptyStage() },
+    hired: [],
   };
 }
 
 function addInto(into: Row, r: Row) {
-  into.interactions += r.interactions;
-  into.shared += r.shared;
-  for (const k of SHAREABLE) into.sharedBy[k] += r.sharedBy[k];
+  into.interactions.push(...r.interactions);
+  into.shared.push(...r.shared);
+  for (const k of SHAREABLE) into.sharedBy[k].push(...r.sharedBy[k]);
   for (const s of STAGES) {
-    into.stages[s.key].selected += r.stages[s.key].selected;
-    into.stages[s.key].rejected += r.stages[s.key].rejected;
-    into.stages[s.key].pending += r.stages[s.key].pending;
+    into.stages[s.key].selected.push(...r.stages[s.key].selected);
+    into.stages[s.key].rejected.push(...r.stages[s.key].rejected);
+    into.stages[s.key].pending.push(...r.stages[s.key].pending);
   }
-  into.hired += r.hired;
+  into.hired.push(...r.hired);
 }
 
 function pct(part: number, whole: number): string {
@@ -74,24 +77,12 @@ const th = "px-3 py-2.5 text-left font-medium text-ink-secondary whitespace-nowr
 const groupTh = "px-3 pt-2 pb-1 text-left text-xs font-semibold uppercase tracking-wide text-ink-secondary";
 const td = "px-3 py-2.5 border-t border-line whitespace-nowrap";
 
-/** One round's result as three plainly-labelled columns — Selected,
- * Rejected, Select % — instead of a packed "3 / 0 · 100% sel" cell, which
- * readers found hard to decode (2026-10-08). */
-function StageCells({ t, bold }: { t: StageTally; bold?: boolean }) {
-  const done = t.selected + t.rejected;
-  const b = bold ? " font-semibold" : "";
-  return (
-    <>
-      <td className={`${td} border-l border-line ${t.selected ? "text-success" : "text-ink-muted"}${b}`}>
-        {t.selected || "-"}
-      </td>
-      <td className={`${td} ${t.rejected ? "text-danger" : "text-ink-muted"}${b}`}>{t.rejected || "-"}</td>
-      <td className={`${td} ${done ? "text-ink" : "text-ink-muted"}${b}`}>{pct(t.selected, done)}</td>
-    </>
-  );
-}
-
 const COMPANY_TABLE_COLS = 2 + 5 + STAGES.length * 3 + 1;
+
+// Anchored below the number, or above it when there isn't room (rows near
+// the bottom of the screen — the Total row especially).
+type Popover = { title: string; names: Names; x: number; top?: number; bottom?: number; pinned: boolean };
+const POPOVER_MAX_HEIGHT = 320;
 
 /**
  * What happens after we share a profile: per company, tech-screened
@@ -111,6 +102,8 @@ export function InterviewAnalysis({
   const [candidates, setCandidates] = useState<CandidateWithCompany[]>([]);
   const [loading, setLoading] = useState(true);
   const [interviewer, setInterviewer] = useState("");
+  const [popover, setPopover] = useState<Popover | null>(null);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -120,7 +113,7 @@ export function InterviewAnalysis({
       supabase
         .from("candidates")
         .select(
-          "tech_screening_date, tech_screening_taken_by, tech_status, shared_to_company, screening_status, tr1_status, tr2_status, hr_mr_status, hired_status, companies(name)",
+          "name, tech_screening_date, tech_screening_taken_by, tech_status, shared_to_company, screening_status, tr1_status, tr2_status, hr_mr_status, hired_status, companies(name)",
         )
         .gte("tech_screening_date", start)
         .lte("tech_screening_date", end)
@@ -135,6 +128,57 @@ export function InterviewAnalysis({
       cancelled = true;
     };
   }, [start, end, syncVersion]);
+
+  // The card is position:fixed (so the table's horizontal scroll can't clip
+  // it) — close it on scroll instead of letting it drift away from its number.
+  useEffect(() => {
+    if (!popover) return;
+    const close = () => setPopover(null);
+    window.addEventListener("scroll", close, true);
+    return () => window.removeEventListener("scroll", close, true);
+  }, [popover]);
+
+  const cancelClose = () => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+  };
+  const scheduleClose = useCallback(() => {
+    cancelClose();
+    // Short grace period so the pointer can move from the number onto the
+    // card (to scroll a long list) without it vanishing.
+    closeTimer.current = setTimeout(() => setPopover((p) => (p?.pinned ? p : null)), 150);
+  }, []);
+  const open = (el: HTMLElement, title: string, names: Names, pinned: boolean) => {
+    cancelClose();
+    const rect = el.getBoundingClientRect();
+    const roomBelow = window.innerHeight - rect.bottom;
+    const place = roomBelow < POPOVER_MAX_HEIGHT && rect.top > roomBelow
+      ? { bottom: window.innerHeight - rect.top + 6 }
+      : { top: rect.bottom + 6 };
+    setPopover({ title, names, x: rect.left, ...place, pinned });
+  };
+
+  /** A number that lists its candidates on hover (or tap). Zero renders as a
+   * plain "-" with nothing to show. */
+  const count = (names: Names, title: string) => {
+    if (names.length === 0) return <span className="text-ink-muted">-</span>;
+    return (
+      <button
+        type="button"
+        className="cursor-help underline decoration-dotted decoration-ink-muted underline-offset-4"
+        onMouseEnter={(e) => open(e.currentTarget, title, names, false)}
+        onMouseLeave={scheduleClose}
+        onFocus={(e) => open(e.currentTarget, title, names, false)}
+        onBlur={scheduleClose}
+        onClick={(e) => {
+          const same = popover?.title === title && popover.pinned;
+          if (same) setPopover(null);
+          else open(e.currentTarget, title, names, true);
+        }}
+      >
+        {names.length}
+      </button>
+    );
+  };
 
   // Only interviewers with at least one completed screening in range —
   // otherwise picking them just shows an all-zero table.
@@ -152,36 +196,80 @@ export function InterviewAnalysis({
     const outcome = categorizeStatus(c.tech_status);
     if (outcome === "Other") continue; // Tech screening not completed yet.
     const company = c.companies?.name ?? "Unknown";
+    const name = c.name?.trim() || "(no name)";
     const row = byCompany.get(company) ?? emptyRow(company);
     byCompany.set(company, row);
-    row.interactions++;
+    row.interactions.push(name);
 
     if (!c.shared_to_company) continue;
     if (outcome === "Reject") {
       rejectedButShared++;
       continue;
     }
-    row.shared++;
-    row.sharedBy[outcome]++;
+    row.shared.push(name);
+    row.sharedBy[outcome].push(name);
     for (const s of STAGES) {
       const status = (c[s.field] ?? "").trim().toLowerCase();
       if (!status) continue; // Hasn't reached this round.
-      if (status === "selected") row.stages[s.key].selected++;
-      else if (status === "rejected") row.stages[s.key].rejected++;
-      else row.stages[s.key].pending++;
+      if (status === "selected") row.stages[s.key].selected.push(name);
+      else if (status === "rejected") row.stages[s.key].rejected.push(name);
+      else row.stages[s.key].pending.push(name);
     }
-    if ((c.hired_status ?? "").trim().toLowerCase() === "hired") row.hired++;
+    if ((c.hired_status ?? "").trim().toLowerCase() === "hired") row.hired.push(name);
   }
-  const rows = Array.from(byCompany.values()).sort((a, b) => b.shared - a.shared || b.interactions - a.interactions);
-  const total = emptyRow("Total");
+  const rows = Array.from(byCompany.values()).sort(
+    (a, b) => b.shared.length - a.shared.length || b.interactions.length - a.interactions.length,
+  );
+  const total = emptyRow("All companies");
   for (const r of rows) addInto(total, r);
 
   const funnel = [
-    { label: "Tech completed", value: total.interactions },
-    { label: "Shared to company", value: total.shared },
-    ...STAGES.map((s) => ({ label: `${s.label} selected`, value: total.stages[s.key].selected })),
-    { label: "Hired", value: total.hired },
+    { label: "Tech completed", value: total.interactions.length },
+    { label: "Shared to company", value: total.shared.length },
+    ...STAGES.map((s) => ({ label: `${s.label} selected`, value: total.stages[s.key].selected.length })),
+    { label: "Hired", value: total.hired.length },
   ];
+
+  /** Selected / Rejected / Select % for one round, as three labelled columns. */
+  const stageCells = (r: Row, s: (typeof STAGES)[number], bold = false) => {
+    const t = r.stages[s.key];
+    const done = t.selected.length + t.rejected.length;
+    const b = bold ? " font-semibold" : "";
+    return (
+      <Fragment key={s.key}>
+        <td className={`${td} border-l border-line text-success${b}`}>
+          {count(t.selected, `${r.company} · ${s.label} · Selected`)}
+        </td>
+        <td className={`${td} text-danger${b}`}>
+          {count(t.rejected, `${r.company} · ${s.label} · Rejected`)}
+        </td>
+        <td className={`${td} ${done ? "text-ink" : "text-ink-muted"}${b}`}>{pct(t.selected.length, done)}</td>
+      </Fragment>
+    );
+  };
+
+  const rowCells = (r: Row, bold = false) => {
+    const b = bold ? " font-semibold" : "";
+    return (
+      <>
+        <td className={`${td} text-ink${b}`}>
+          {count(r.interactions, `${r.company} · Tech completed`)}
+        </td>
+        <td className={`${td} border-l border-line text-ink${b}`}>
+          {count(r.shared, `${r.company} · Shared to company`)}
+        </td>
+        {SHAREABLE.map((k) => (
+          <td key={k} className={`${td} text-ink${b}`}>
+            {count(r.sharedBy[k], `${r.company} · Shared · ${k}`)}
+          </td>
+        ))}
+        {STAGES.map((s) => stageCells(r, s, bold))}
+        <td className={`${td} border-l border-line font-medium text-success${b}`}>
+          {count(r.hired, `${r.company} · Hired`)}
+        </td>
+      </>
+    );
+  };
 
   return (
     <section className="flex flex-col gap-4">
@@ -202,10 +290,14 @@ export function InterviewAnalysis({
       </div>
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <StatTile label="Tech completed" value={loading ? "…" : total.interactions} accent="accent" />
-        <StatTile label="Shared to company" value={loading ? "…" : total.shared} accent="warning" />
-        <StatTile label="Hired" value={loading ? "…" : total.hired} accent="success" />
-        <StatTile label="Shared → hired" value={loading ? "…" : pct(total.hired, total.shared)} accent="success" />
+        <StatTile label="Tech completed" value={loading ? "…" : total.interactions.length} accent="accent" />
+        <StatTile label="Shared to company" value={loading ? "…" : total.shared.length} accent="warning" />
+        <StatTile label="Hired" value={loading ? "…" : total.hired.length} accent="success" />
+        <StatTile
+          label="Shared → hired"
+          value={loading ? "…" : pct(total.hired.length, total.shared.length)}
+          accent="success"
+        />
       </div>
 
       {/* Round-by-round selection vs rejection — the headline view. */}
@@ -229,23 +321,30 @@ export function InterviewAnalysis({
               <>
                 {STAGES.map((s) => {
                   const t = total.stages[s.key];
-                  const done = t.selected + t.rejected;
+                  const done = t.selected.length + t.rejected.length;
                   return (
                     <tr key={s.key} className="transition-colors hover:bg-surface-hover">
                       <td className={`${td} font-medium text-ink`}>{s.label}</td>
                       <td className={`${td} text-ink`}>{done || "-"}</td>
-                      <td className={`${td} ${t.selected ? "text-success" : "text-ink-muted"}`}>{t.selected || "-"}</td>
-                      <td className={`${td} ${t.rejected ? "text-danger" : "text-ink-muted"}`}>{t.rejected || "-"}</td>
-                      <td className={`${td} text-ink-secondary`}>{t.pending || "-"}</td>
-                      <td className={`${td} font-medium text-success`}>{pct(t.selected, done)}</td>
-                      <td className={`${td} font-medium text-danger`}>{pct(t.rejected, done)}</td>
+                      <td className={`${td} text-success`}>
+                        {count(t.selected, `${s.label} · Selected`)}
+                      </td>
+                      <td className={`${td} text-danger`}>
+                        {count(t.rejected, `${s.label} · Rejected`)}
+                      </td>
+                      <td className={`${td} text-ink-secondary`}>
+                        {count(t.pending, `${s.label} · Pending`)}
+                      </td>
+                      <td className={`${td} font-medium text-success`}>{pct(t.selected.length, done)}</td>
+                      <td className={`${td} font-medium text-danger`}>{pct(t.rejected.length, done)}</td>
                     </tr>
                   );
                 })}
                 <tr>
                   <td className={`${td} font-medium text-ink`}>Hired</td>
                   <td className={`${td} font-semibold text-success`} colSpan={6}>
-                    {total.hired} of {total.shared} shared ({pct(total.hired, total.shared)})
+                    {count(total.hired, "Hired")} of {total.shared.length} shared (
+                    {pct(total.hired.length, total.shared.length)})
                   </td>
                 </tr>
               </>
@@ -254,7 +353,7 @@ export function InterviewAnalysis({
         </table>
       </div>
 
-      {!loading && total.interactions > 0 && <BarChartCard title="Tech completed → hired" data={funnel} />}
+      {!loading && total.interactions.length > 0 && <BarChartCard title="Tech completed → hired" data={funnel} />}
 
       {/* Per company. */}
       <div className="flex flex-col gap-1">
@@ -262,7 +361,8 @@ export function InterviewAnalysis({
         <p className="text-xs text-ink-secondary">
           For each company round: <span className="text-success">Selected</span> = candidates the company passed in
           that round, <span className="text-danger">Rejected</span> = candidates the company rejected, Select % =
-          Selected ÷ (Selected + Rejected). &ldquo;-&rdquo; means no candidate has a result in that round yet.
+          Selected ÷ (Selected + Rejected). &ldquo;-&rdquo; means no candidate has a result in that round yet.{" "}
+          <span className="text-ink">Hover over (or tap) any underlined number to see the candidate names.</span>
         </p>
       </div>
       <div className="overflow-x-auto rounded-lg border border-line bg-surface">
@@ -309,19 +409,7 @@ export function InterviewAnalysis({
               rows.map((r) => (
                 <tr key={r.company} className="transition-colors hover:bg-surface-hover">
                   <td className={`${td} sticky left-0 z-10 bg-surface font-medium text-ink`}>{r.company}</td>
-                  <td className={`${td} text-ink`}>{r.interactions}</td>
-                  <td className={`${td} border-l border-line text-ink`}>{r.shared || "-"}</td>
-                  {SHAREABLE.map((k) => (
-                    <td key={k} className={`${td} ${r.sharedBy[k] ? "text-ink" : "text-ink-muted"}`}>
-                      {r.sharedBy[k] || "-"}
-                    </td>
-                  ))}
-                  {STAGES.map((s) => (
-                    <StageCells key={s.key} t={r.stages[s.key]} />
-                  ))}
-                  <td className={`${td} border-l border-line ${r.hired ? "font-medium text-success" : "text-ink-muted"}`}>
-                    {r.hired || "-"}
-                  </td>
+                  {rowCells(r)}
                 </tr>
               ))
             )}
@@ -330,17 +418,7 @@ export function InterviewAnalysis({
             <tfoot className="bg-surface-hover">
               <tr>
                 <td className={`${td} sticky left-0 z-10 bg-surface-hover font-semibold text-ink`}>Total</td>
-                <td className={`${td} font-semibold text-ink`}>{total.interactions}</td>
-                <td className={`${td} border-l border-line font-semibold text-ink`}>{total.shared}</td>
-                {SHAREABLE.map((k) => (
-                  <td key={k} className={`${td} font-semibold text-ink`}>
-                    {total.sharedBy[k] || "-"}
-                  </td>
-                ))}
-                {STAGES.map((s) => (
-                  <StageCells key={s.key} t={total.stages[s.key]} bold />
-                ))}
-                <td className={`${td} border-l border-line font-semibold text-success`}>{total.hired || "-"}</td>
+                {rowCells(total, true)}
               </tr>
             </tfoot>
           )}
@@ -353,6 +431,46 @@ export function InterviewAnalysis({
           also marked &ldquo;shared with the company&rdquo; in the sheet — left out of the counts above. Worth checking
           the sheet for those rows.
         </p>
+      )}
+
+      {popover && (
+        <div
+          role="dialog"
+          aria-label={popover.title}
+          onMouseEnter={cancelClose}
+          onMouseLeave={scheduleClose}
+          className="fixed z-50 w-72 rounded-lg border border-line bg-surface p-3 text-sm shadow-lg"
+          style={{
+            left: Math.max(8, Math.min(popover.x, (typeof window !== "undefined" ? window.innerWidth : 1200) - 296)),
+            top: popover.top,
+            bottom: popover.bottom,
+          }}
+        >
+          <div className="mb-2 flex items-start justify-between gap-2">
+            <div className="text-xs font-medium text-ink-secondary">
+              {popover.title} · {popover.names.length}
+            </div>
+            {popover.pinned && (
+              <button
+                type="button"
+                onClick={() => setPopover(null)}
+                className="text-xs text-ink-muted hover:text-ink"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+          <ol className="max-h-64 list-decimal overflow-y-auto pl-5 text-ink">
+            {[...popover.names]
+              .sort((a, b) => a.localeCompare(b))
+              .map((n, i) => (
+                <li key={i} className="py-0.5">
+                  {n}
+                </li>
+              ))}
+          </ol>
+        </div>
       )}
     </section>
   );
