@@ -8,6 +8,7 @@ import { fetchAllRows } from "@/lib/fetchAllRows";
 import { useSyncVersion } from "@/lib/useSyncVersion";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { StackedOutcomeChart } from "@/components/StackedOutcomeChart";
+import { InterviewAnalysis } from "@/components/InterviewAnalysis";
 import { Table, Th, Td, Tr, EmptyRow, LoadingRow } from "@/components/Table";
 import type { Candidate } from "@/lib/types";
 
@@ -58,6 +59,7 @@ export default function InterviewerReportPage() {
     };
   }, [preset, customStart, customEnd, syncVersion]);
 
+  const range = computeRange(preset, customStart, customEnd);
   const byInterviewer = new Map<string, InterviewerRow>();
   for (const c of candidates) {
     const name = c.tech_screening_taken_by;
@@ -136,6 +138,8 @@ export default function InterviewerReportPage() {
           )}
         </tbody>
       </Table>
+
+      <InterviewAnalysis start={range.start} end={range.end} syncVersion={syncVersion} />
     </div>
   );
 }
