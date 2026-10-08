@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { categorizeStatus } from "@/lib/format";
 import { fetchAllRows } from "@/lib/fetchAllRows";
@@ -71,26 +71,27 @@ function pct(part: number, whole: number): string {
 }
 
 const th = "px-3 py-2.5 text-left font-medium text-ink-secondary whitespace-nowrap";
-const groupTh = "px-3 py-1.5 text-left text-xs font-medium uppercase tracking-wide text-ink-muted";
+const groupTh = "px-3 pt-2 pb-1 text-left text-xs font-semibold uppercase tracking-wide text-ink-secondary";
 const td = "px-3 py-2.5 border-t border-line whitespace-nowrap";
 
-/** One round's result in a single cell: selected (green) / rejected (red),
- * with the select % of completed underneath. */
-function StageCell({ t, bold }: { t: StageTally; bold?: boolean }) {
+/** One round's result as three plainly-labelled columns — Selected,
+ * Rejected, Select % — instead of a packed "3 / 0 · 100% sel" cell, which
+ * readers found hard to decode (2026-10-08). */
+function StageCells({ t, bold }: { t: StageTally; bold?: boolean }) {
   const done = t.selected + t.rejected;
-  if (done === 0 && t.pending === 0) return <td className={`${td} border-l border-line text-ink-muted`}>-</td>;
+  const b = bold ? " font-semibold" : "";
   return (
-    <td className={`${td} border-l border-line ${bold ? "font-semibold" : ""}`}>
-      <span className={t.selected > 0 ? "text-success" : "text-ink-muted"}>{t.selected}</span>
-      <span className="text-ink-muted"> / </span>
-      <span className={t.rejected > 0 ? "text-danger" : "text-ink-muted"}>{t.rejected}</span>
-      <div className="text-xs font-normal text-ink-muted">
-        {done > 0 ? `${pct(t.selected, done)} sel` : ""}
-        {t.pending > 0 ? `${done > 0 ? " · " : ""}${t.pending} pending` : ""}
-      </div>
-    </td>
+    <>
+      <td className={`${td} border-l border-line ${t.selected ? "text-success" : "text-ink-muted"}${b}`}>
+        {t.selected || "-"}
+      </td>
+      <td className={`${td} ${t.rejected ? "text-danger" : "text-ink-muted"}${b}`}>{t.rejected || "-"}</td>
+      <td className={`${td} ${done ? "text-ink" : "text-ink-muted"}${b}`}>{pct(t.selected, done)}</td>
+    </>
   );
 }
+
+const COMPANY_TABLE_COLS = 2 + 5 + STAGES.length * 3 + 1;
 
 /**
  * What happens after we share a profile: per company, tech-screened
@@ -256,6 +257,14 @@ export function InterviewAnalysis({
       {!loading && total.interactions > 0 && <BarChartCard title="Tech completed → hired" data={funnel} />}
 
       {/* Per company. */}
+      <div className="flex flex-col gap-1">
+        <h3 className="text-sm font-medium text-ink">By company</h3>
+        <p className="text-xs text-ink-secondary">
+          For each company round: <span className="text-success">Selected</span> = candidates the company passed in
+          that round, <span className="text-danger">Rejected</span> = candidates the company rejected, Select % =
+          Selected ÷ (Selected + Rejected). &ldquo;-&rdquo; means no candidate has a result in that round yet.
+        </p>
+      </div>
       <div className="overflow-x-auto rounded-lg border border-line bg-surface">
         <table className="w-full text-sm">
           <thead className="bg-surface-hover">
@@ -265,9 +274,11 @@ export function InterviewAnalysis({
               <th className={`${groupTh} border-l border-line`} colSpan={5}>
                 Shared to company
               </th>
-              <th className={`${groupTh} border-l border-line`} colSpan={STAGES.length}>
-                Company rounds — selected / rejected
-              </th>
+              {STAGES.map((s) => (
+                <th key={s.key} className={`${groupTh} border-l border-line`} colSpan={3}>
+                  {s.label}
+                </th>
+              ))}
               <th className={`${groupTh} border-l border-line`} />
             </tr>
             <tr className="border-b border-line">
@@ -280,18 +291,20 @@ export function InterviewAnalysis({
                 </th>
               ))}
               {STAGES.map((s) => (
-                <th key={s.key} className={`${th} border-l border-line`}>
-                  {s.label}
-                </th>
+                <Fragment key={s.key}>
+                  <th className={`${th} border-l border-line`}>Selected</th>
+                  <th className={th}>Rejected</th>
+                  <th className={th}>Select %</th>
+                </Fragment>
               ))}
               <th className={`${th} border-l border-line`}>Hired</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <LoadingRow colSpan={7 + STAGES.length + 1} />
+              <LoadingRow colSpan={COMPANY_TABLE_COLS} />
             ) : rows.length === 0 ? (
-              <EmptyRow colSpan={7 + STAGES.length + 1} label="No completed tech screenings in this range" />
+              <EmptyRow colSpan={COMPANY_TABLE_COLS} label="No completed tech screenings in this range" />
             ) : (
               rows.map((r) => (
                 <tr key={r.company} className="transition-colors hover:bg-surface-hover">
@@ -304,7 +317,7 @@ export function InterviewAnalysis({
                     </td>
                   ))}
                   {STAGES.map((s) => (
-                    <StageCell key={s.key} t={r.stages[s.key]} />
+                    <StageCells key={s.key} t={r.stages[s.key]} />
                   ))}
                   <td className={`${td} border-l border-line ${r.hired ? "font-medium text-success" : "text-ink-muted"}`}>
                     {r.hired || "-"}
@@ -325,7 +338,7 @@ export function InterviewAnalysis({
                   </td>
                 ))}
                 {STAGES.map((s) => (
-                  <StageCell key={s.key} t={total.stages[s.key]} bold />
+                  <StageCells key={s.key} t={total.stages[s.key]} bold />
                 ))}
                 <td className={`${td} border-l border-line font-semibold text-success`}>{total.hired || "-"}</td>
               </tr>
