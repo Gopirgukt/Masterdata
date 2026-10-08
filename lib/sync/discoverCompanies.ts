@@ -152,7 +152,16 @@ export async function discoverNewCompanies(): Promise<DiscoveryResult> {
     if (onboardedSheetIds.has(extractSpreadsheetId(link))) return false;
     return true;
   });
-  const toProcess = candidates.slice(0, MAX_NEW_COMPANIES_PER_RUN);
+  // Brand-new companies (no row yet) before retries of broken ones (row but
+  // no working tab — usually a sheet not shared with the sync account).
+  // Confirmed 2026-10-08: 28 broken rows sat ahead in log order and filled
+  // all 12 slots on every run, so no new company — including the 8 that only
+  // exist in Main — was ever even looked at. Retries are shuffled so the ones
+  // past the cap still get their turn on later runs.
+  const knownNames = new Set((existing ?? []).map((c) => c.name.trim().toLowerCase()));
+  const isNew = ([name]: [string, string]) => !knownNames.has(name.toLowerCase());
+  const retries = candidates.filter((c) => !isNew(c)).sort(() => Math.random() - 0.5);
+  const toProcess = [...candidates.filter(isNew), ...retries].slice(0, MAX_NEW_COMPANIES_PER_RUN);
 
   await mapWithConcurrency(toProcess, DISCOVERY_CONCURRENCY, async ([name, link]) => {
     const spreadsheetId = extractSpreadsheetId(link);
