@@ -17,6 +17,8 @@ const STATUS_HEADER_MAP: Record<FieldKey, string> = {
   hired_status: "hired status",
 };
 
+const NAME_HEADERS = ["name", "candidate name", "full name", "candidate"];
+
 function normalizeName(raw: string): string {
   return raw.trim().toLowerCase().replace(/\s+/g, " ");
 }
@@ -79,7 +81,10 @@ async function syncOneCompanySheet(company: Company): Promise<CompanySheetSyncRe
     const data = tabData.get(title);
     if (!data) continue;
     const normHeaders = data.headers.map((h) => h.trim().toLowerCase());
-    const nameIdx = normHeaders.indexOf("name");
+    // Not every Company Sheet tab calls it "Name" (confirmed 2026-10-08: MWB
+    // Technologies' second tab uses "Candidate Name", so the whole tab was
+    // skipped and none of its candidates counted as shared).
+    const nameIdx = normHeaders.findIndex((h) => NAME_HEADERS.includes(h));
     if (nameIdx < 0) continue;
 
     const fieldIdx: Partial<Record<FieldKey, number>> = {};
@@ -87,7 +92,8 @@ async function syncOneCompanySheet(company: Company): Promise<CompanySheetSyncRe
       const idx = normHeaders.indexOf(header);
       if (idx >= 0) fieldIdx[field] = idx;
     }
-    if (Object.keys(fieldIdx).length === 0) continue; // No funnel-status columns on this tab at all.
+    // A tab with names but no status columns still counts: being listed in
+    // the Company Sheet at all is what proves the profile was shared.
 
     for (const row of data.rows) {
       const name = (row[nameIdx] ?? "").trim();
