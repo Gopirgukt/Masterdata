@@ -9,7 +9,9 @@ type Status = "idle" | "syncing" | "done" | "error";
 // before giving up and quietly reverting to idle, since the sync may still
 // be genuinely running even if this particular check gives up on it.
 const POLL_INTERVAL_MS = 3000;
-const POLL_TIMEOUT_MS = 45_000;
+// Raised with the route's maxDuration (60s → 300s, 2026-10-08): runs now
+// regularly take over a minute.
+const POLL_TIMEOUT_MS = 180_000;
 
 export function SyncNowButton({
   lastFinishedAt,

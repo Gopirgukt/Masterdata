@@ -2,7 +2,7 @@ import { NextRequest, NextResponse, after } from "next/server";
 import { syncAllCompanySheets } from "@/lib/sync/syncCompanySheets";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300; // Fluid compute (vercel.json) — the 60s non-fluid cap killed syncs mid-run.
 
 // Separate from /api/sync: this reads each company's Company Sheet (a
 // different spreadsheet than the one the main sync reads), gated by its own

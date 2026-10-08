@@ -2,7 +2,7 @@ import { NextRequest, NextResponse, after } from "next/server";
 import { rescanForNewTabs } from "@/lib/sync/rescanTabs";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300; // Fluid compute (vercel.json) — the 60s non-fluid cap killed syncs mid-run.
 
 // Separate from /api/sync and /api/discover-companies: this only reads tab
 // metadata (cheap) plus, for genuinely unregistered tabs, one row fetch each —

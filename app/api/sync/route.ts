@@ -3,12 +3,15 @@ import { syncAllCompanies } from "@/lib/sync/runSync";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+// 300s needs Fluid compute ("fluid": true in vercel.json) — without it Vercel
+// caps Hobby functions at 60s, and once a full run grew past that (confirmed
+// 2026-10-08: "Task timed out after 60 seconds", every run from 08:00 IST
+// left unfinished with 0 companies recorded) nothing synced at all.
+export const maxDuration = 300;
 
-// A full sync now takes ~20s (confirmed 2026-08-27, down from ~50-60s after
-// parallelizing per-company syncs) — comfortably inside this window, an
-// in-flight run is still genuinely running, not stuck.
-const IN_FLIGHT_WINDOW_MS = 45_000;
+// A run still inside this window is treated as genuinely in progress, not
+// stuck — matches maxDuration, since a run can now legitimately take minutes.
+const IN_FLIGHT_WINDOW_MS = 300_000;
 
 async function isSyncInFlight(): Promise<boolean> {
   const supabase = createAdminClient();

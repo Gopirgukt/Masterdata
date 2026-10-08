@@ -2,7 +2,7 @@ import { NextRequest, NextResponse, after } from "next/server";
 import { discoverNewCompanies } from "@/lib/sync/discoverCompanies";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300; // Fluid compute (vercel.json) — the 60s non-fluid cap killed syncs mid-run.
 
 // Kept separate from /api/sync deliberately — probing a newly-discovered
 // spreadsheet's tabs is expensive (confirmed 2026-09-07: 313.8s across 4

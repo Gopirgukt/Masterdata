@@ -1,4 +1,5 @@
 {
+  "fluid": true,
   "crons": [
     { "path": "/api/sync-company-sheets", "schedule": "30 2 * * *" },
     { "path": "/api/rescan-tabs", "schedule": "0 3 * * *" },

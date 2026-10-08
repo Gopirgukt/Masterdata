@@ -2,7 +2,7 @@ import { NextRequest, NextResponse, after } from "next/server";
 import { syncJobOpenings } from "@/lib/sync/syncJobOpenings";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300; // Fluid compute (vercel.json) — the 60s non-fluid cap killed syncs mid-run.
 
 // Separate from /api/sync: this reads the "Main" tab of the org-wide master
 // sheet (one row per job opening ever requested, across every company) into
