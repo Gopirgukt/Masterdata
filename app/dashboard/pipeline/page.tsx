@@ -5,8 +5,17 @@ import { createClient } from "@/lib/supabase/client";
 import { categorizeStatus, formatDateLabel, toIsoDate } from "@/lib/format";
 import { useSyncVersion } from "@/lib/useSyncVersion";
 import { MiniCalendar, monthOf, type ViewMonth } from "@/components/MiniCalendar";
+import { SelectFilter } from "@/components/SelectFilter";
+import { computeRange, type DateRangePreset } from "@/lib/dateRange";
 import { Table, Th, Td, Tr, EmptyRow, LoadingRow } from "@/components/Table";
 import type { CandidateWithCompany } from "@/lib/types";
+
+// "day" = the original single-date view (driven by the calendar); "all" =
+// no date limit (what the recruiter table always showed before 2026-10-09).
+type RangeMode = "day" | DateRangePreset | "all";
+
+const inputClass =
+  "rounded-md border border-line-strong bg-surface text-ink text-sm px-3 py-2 outline-none transition-colors hover:border-ink-muted focus:border-accent focus:ring-2 focus:ring-accent-soft";
 
 type PipelineRow = {
   recruiter: string;
@@ -14,7 +23,10 @@ type PipelineRow = {
   interested: number;
   scheduled: number;
   shared: number;
-  offer: number;
+  // Was "offer", read from company_decision — which the sync never fills
+  // (mapping.ts: "not tracked in this source; always null"), so it was 0 for
+  // everyone, always. hired_status is the real, synced outcome.
+  hired: number;
 };
 
 type CompanyDayRow = {
@@ -43,6 +55,10 @@ export default function RecruiterPipelinePage() {
   const [selectedDate, setSelectedDate] = useState<string>(today);
   const [viewMonth, setViewMonth] = useState<ViewMonth>(() => monthOf(today));
   const [showCalendar, setShowCalendar] = useState(false);
+  const [mode, setMode] = useState<RangeMode>("day");
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
+  const [recruiter, setRecruiter] = useState("");
   const syncVersion = useSyncVersion();
 
   useEffect(() => {
@@ -58,7 +74,7 @@ export default function RecruiterPipelinePage() {
         const { data, error } = await supabase
           .from("candidates")
           .select(
-            "recruiter, interested, call_date, call_status, tr_status, tech_screening_date, shared_to_company, company_decision, companies(name)",
+            "recruiter, interested, call_date, call_status, tr_status, tech_screening_date, shared_to_company, hired_status, companies(name)",
           )
           .range(offset, offset + pageSize - 1);
 
@@ -80,26 +96,51 @@ export default function RecruiterPipelinePage() {
     loadAll();
   }, [syncVersion]);
 
+  // Both tables follow the same period (by call date) and recruiter filter.
+  const range =
+    mode === "all"
+      ? null
+      : mode === "day"
+        ? { start: selectedDate, end: selectedDate }
+        : computeRange(mode, customStart, customEnd);
+  const inRange = (d: string | null) => !range || (!!d && d >= range.start && d <= range.end);
+  const rangeLabel = !range
+    ? "All time"
+    : range.start === range.end
+      ? formatDateLabel(range.start)
+      : `${formatDateLabel(range.start)} – ${formatDateLabel(range.end)}`;
+
+  const recruiterOptions = Array.from(
+    new Set([
+      ...candidates.filter((c) => c.recruiter && c.call_date && inRange(c.call_date)).map((c) => c.recruiter!),
+      ...(recruiter ? [recruiter] : []),
+    ]),
+  ).sort((a, b) => a.localeCompare(b));
+
   const byRecruiter = new Map<string, PipelineRow>();
   const callsByDate = new Map<string, number>();
-  const byCompanyOnSelectedDate = new Map<string, CompanyDayRow>();
+  const byCompanyInRange = new Map<string, CompanyDayRow>();
 
   for (const c of candidates) {
+    if (c.call_date) {
+      callsByDate.set(c.call_date, (callsByDate.get(c.call_date) ?? 0) + 1);
+    }
+    if (recruiter && c.recruiter !== recruiter) continue;
+    // "All time" keeps the old all-time behaviour (every candidate, dated or
+    // not); any real period counts candidates whose call date falls in it.
+    if (range && !inRange(c.call_date)) continue;
+
     const name = c.recruiter;
     if (name) {
       if (!byRecruiter.has(name)) {
-        byRecruiter.set(name, { recruiter: name, calls: 0, interested: 0, scheduled: 0, shared: 0, offer: 0 });
+        byRecruiter.set(name, { recruiter: name, calls: 0, interested: 0, scheduled: 0, shared: 0, hired: 0 });
       }
       const row = byRecruiter.get(name)!;
       if (c.call_date) row.calls++;
       if (c.interested) row.interested++;
       if (c.tech_screening_date) row.scheduled++;
       if (c.shared_to_company) row.shared++;
-      if ((c.company_decision ?? "").toLowerCase().includes("offer")) row.offer++;
-    }
-
-    if (c.call_date) {
-      callsByDate.set(c.call_date, (callsByDate.get(c.call_date) ?? 0) + 1);
+      if ((c.hired_status ?? "").trim().toLowerCase() === "hired") row.hired++;
     }
 
     // Assigned = has a call_date logged for the day (confirmed with the user
@@ -107,14 +148,14 @@ export default function RecruiterPipelinePage() {
     // subset of those where Call Status is actually filled in — call_date can
     // be set before the recruiter has gotten to the candidate, so "assigned"
     // and "attempted" are different counts even though both key off call_date.
-    if (c.call_date === selectedDate) {
+    if (c.call_date) {
       const companyName = c.companies?.name ?? "Unknown";
       const recruiterName = c.recruiter ?? "Unknown";
       const key = `${companyName}||${recruiterName}`;
-      if (!byCompanyOnSelectedDate.has(key)) {
-        byCompanyOnSelectedDate.set(key, emptyCompanyDayRow(companyName, recruiterName));
+      if (!byCompanyInRange.has(key)) {
+        byCompanyInRange.set(key, emptyCompanyDayRow(companyName, recruiterName));
       }
-      const companyRow = byCompanyOnSelectedDate.get(key)!;
+      const companyRow = byCompanyInRange.get(key)!;
       companyRow.assigned++;
       if (c.call_status && c.call_status.trim() !== "") {
         companyRow.attempts++;
@@ -126,8 +167,33 @@ export default function RecruiterPipelinePage() {
   }
 
   const recruiterRows = Array.from(byRecruiter.values()).sort((a, b) => b.calls - a.calls);
-  const companyDayRows = Array.from(byCompanyOnSelectedDate.values()).sort(
+  const companyDayRows = Array.from(byCompanyInRange.values()).sort(
     (a, b) => a.company.localeCompare(b.company) || b.attempts - a.attempts,
+  );
+  const companyTotal = companyDayRows.reduce(
+    (t, r) => {
+      t.assigned += r.assigned;
+      t.attempts += r.attempts;
+      t.interested += r.interested;
+      t.P1 += r.P1;
+      t.P2 += r.P2;
+      t.P3 += r.P3;
+      t.Hold += r.Hold;
+      t.Reject += r.Reject;
+      return t;
+    },
+    emptyCompanyDayRow("Total", ""),
+  );
+  const recruiterTotal = recruiterRows.reduce(
+    (t, r) => ({
+      ...t,
+      calls: t.calls + r.calls,
+      interested: t.interested + r.interested,
+      scheduled: t.scheduled + r.scheduled,
+      shared: t.shared + r.shared,
+      hired: t.hired + r.hired,
+    }),
+    { recruiter: "Total", calls: 0, interested: 0, scheduled: 0, shared: 0, hired: 0 },
   );
   const breakdownToneClass: Record<"P1" | "P2" | "P3" | "Hold" | "Reject", string> = {
     P1: "text-success",
@@ -159,10 +225,10 @@ export default function RecruiterPipelinePage() {
 
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
         <div className="flex flex-1 flex-col gap-3 min-w-0">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-medium text-ink">Companies worked — {formatDateLabel(selectedDate)}</h2>
-            <div className="flex items-center gap-3">
-              {selectedDate !== today && (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-base font-medium text-ink">Companies worked — {rangeLabel}</h2>
+            <div className="flex flex-wrap items-center gap-3">
+              {mode === "day" && selectedDate !== today && (
                 <button
                   onClick={() => {
                     setSelectedDate(today);
@@ -173,6 +239,26 @@ export default function RecruiterPipelinePage() {
                   Back to today
                 </button>
               )}
+              <select
+                value={mode}
+                onChange={(e) => setMode(e.target.value as RangeMode)}
+                className={inputClass}
+                suppressHydrationWarning
+              >
+                <option value="day">Single day</option>
+                <option value="this_week">This week</option>
+                <option value="this_month">This month</option>
+                <option value="custom">Custom range</option>
+                <option value="all">All time</option>
+              </select>
+              {mode === "custom" && (
+                <>
+                  <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} className={inputClass} />
+                  <span className="text-sm text-ink-muted">to</span>
+                  <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} className={inputClass} />
+                </>
+              )}
+              <SelectFilter value={recruiter} onChange={setRecruiter} options={recruiterOptions} placeholder="All recruiters" />
               <button
                 onClick={() => setShowCalendar((v) => !v)}
                 className="rounded-md border border-line-strong bg-surface text-ink-secondary text-sm px-3 py-2 transition-colors hover:border-ink-muted hover:text-ink"
@@ -203,7 +289,10 @@ export default function RecruiterPipelinePage() {
               ) : migrationNeeded ? (
                 <EmptyRow colSpan={10} label="Run the migrations above to see pipeline data" />
               ) : companyDayRows.length === 0 ? (
-                <EmptyRow colSpan={10} label="No activity logged for this day" />
+                <EmptyRow
+                  colSpan={10}
+                  label={`No activity logged ${mode === "day" ? "for this day" : "in this period"}${recruiter ? ` for ${recruiter}` : ""}`}
+                />
               ) : (
                 companyDayRows.map((r) => (
                   <Tr key={`${r.company}||${r.recruiter}`}>
@@ -221,6 +310,22 @@ export default function RecruiterPipelinePage() {
                 ))
               )}
             </tbody>
+            {!loading && companyDayRows.length > 1 && (
+              <tfoot className="bg-surface-hover font-semibold">
+                <tr>
+                  <td className="px-4 py-2.5 text-ink">Total</td>
+                  <td className="px-4 py-2.5" />
+                  <td className="px-4 py-2.5 text-ink">{companyTotal.assigned || "-"}</td>
+                  <td className="px-4 py-2.5 text-ink">{companyTotal.attempts || "-"}</td>
+                  <td className="px-4 py-2.5 text-ink">{companyTotal.interested || "-"}</td>
+                  {(["P1", "P2", "P3", "Hold", "Reject"] as const).map((k) => (
+                    <td key={k} className={`px-4 py-2.5 ${companyTotal[k] > 0 ? breakdownToneClass[k] : "text-ink-muted"}`}>
+                      {companyTotal[k] || "-"}
+                    </td>
+                  ))}
+                </tr>
+              </tfoot>
+            )}
           </Table>
         </div>
 
@@ -232,14 +337,20 @@ export default function RecruiterPipelinePage() {
             selectedDate={selectedDate}
             todayIso={today}
             onSelectDate={(date) => {
-              if (date) setSelectedDate(date);
+              if (!date) return;
+              setSelectedDate(date);
+              setMode("day"); // Picking a date on the calendar means "show me that day".
             }}
           />
         )}
       </div>
 
       <div className="flex flex-col gap-3">
-        <h2 className="text-base font-medium text-ink">All-time by recruiter</h2>
+        <h2 className="text-base font-medium text-ink">By recruiter — {rangeLabel}</h2>
+        <p className="-mt-1 text-xs text-ink-secondary">
+          Candidates whose call date falls in the period (every candidate for &ldquo;All time&rdquo;): calls made,
+          interested, scheduled for tech screening, shared with the company, and hired.
+        </p>
         <Table>
           <thead>
             <tr>
@@ -248,7 +359,7 @@ export default function RecruiterPipelinePage() {
               <Th>Interested</Th>
               <Th>Scheduled</Th>
               <Th>Shared</Th>
-              <Th>Offer</Th>
+              <Th>Hired</Th>
             </tr>
           </thead>
           <tbody>
@@ -257,7 +368,7 @@ export default function RecruiterPipelinePage() {
             ) : migrationNeeded ? (
               <EmptyRow colSpan={6} label="Run the migration above to see pipeline data" />
             ) : recruiterRows.length === 0 ? (
-              <EmptyRow colSpan={6} />
+              <EmptyRow colSpan={6} label="No calls in this period" />
             ) : (
               recruiterRows.map((r) => (
                 <Tr key={r.recruiter}>
@@ -266,11 +377,23 @@ export default function RecruiterPipelinePage() {
                   <Td>{r.interested}</Td>
                   <Td>{r.scheduled}</Td>
                   <Td>{r.shared}</Td>
-                  <Td className={r.offer > 0 ? "text-success font-medium" : undefined}>{r.offer}</Td>
+                  <Td className={r.hired > 0 ? "text-success font-medium" : undefined}>{r.hired}</Td>
                 </Tr>
               ))
             )}
           </tbody>
+          {!loading && recruiterRows.length > 1 && (
+            <tfoot className="bg-surface-hover font-semibold">
+              <tr>
+                <td className="px-4 py-2.5 text-ink">Total</td>
+                <td className="px-4 py-2.5 text-ink">{recruiterTotal.calls}</td>
+                <td className="px-4 py-2.5 text-ink">{recruiterTotal.interested}</td>
+                <td className="px-4 py-2.5 text-ink">{recruiterTotal.scheduled}</td>
+                <td className="px-4 py-2.5 text-ink">{recruiterTotal.shared}</td>
+                <td className={`px-4 py-2.5 ${recruiterTotal.hired > 0 ? "text-success" : "text-ink"}`}>{recruiterTotal.hired}</td>
+              </tr>
+            </tfoot>
+          )}
         </Table>
       </div>
     </div>
