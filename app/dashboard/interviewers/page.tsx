@@ -44,9 +44,14 @@ export default function InterviewerReportPage() {
     fetchAllRows<Candidate>((start, end) =>
       supabase
         .from("candidates")
-        .select("tech_screening_taken_by, tech_status, call_date")
-        .gte("call_date", range.start)
-        .lte("call_date", range.end)
+        // Interview date, not call date — this page counts interviews, and the
+        // Analysis section below uses the same date. With call date, a
+        // candidate called last week but interviewed this week landed in
+        // different weeks in the two sections (confirmed 2026-10-09: Gopichand
+        // "This week" showed 13 here vs 18 in Analysis).
+        .select("tech_screening_taken_by, tech_status, tech_screening_date")
+        .gte("tech_screening_date", range.start)
+        .lte("tech_screening_date", range.end)
         .range(start, end),
     ).then((data) => {
       if (cancelled) return;
