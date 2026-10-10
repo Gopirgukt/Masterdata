@@ -132,7 +132,7 @@ export default function TodayInterviewsPage() {
   return (
     <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
       <div className="flex flex-1 flex-col gap-6 min-w-0">
-        <div className="flex items-center gap-3">
+        <div className="grid grid-cols-3 gap-2 sm:flex sm:items-center sm:gap-3">
           {chips.map((c) => {
             const tone = toneClasses[c.tone];
             const isActive = !selectedDate && activeBucket === c.key;
@@ -143,7 +143,7 @@ export default function TodayInterviewsPage() {
                   setSelectedDate(null);
                   setActiveBucket(c.key);
                 }}
-                className={`min-w-[140px] rounded-lg border px-4 py-3 text-left transition-colors ${
+                className={`rounded-lg border px-3 py-2.5 sm:min-w-[140px] sm:px-4 sm:py-3 text-left transition-colors ${
                   isActive ? tone.active : "border-line bg-surface hover:bg-surface-hover"
                 }`}
               >
@@ -157,7 +157,7 @@ export default function TodayInterviewsPage() {
           })}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <CompanyFilter companies={companies} value={companyId} onChange={setCompanyId} />
           <select
             value={interviewer}

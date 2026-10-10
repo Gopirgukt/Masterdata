@@ -20,7 +20,7 @@ export function GlobalSyncAlert() {
   if (total === 0) return null;
 
   return (
-    <div className="border-b border-line bg-warning-soft px-8 py-2">
+    <div className="border-b border-line bg-warning-soft px-4 py-2 md:px-8">
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
@@ -38,10 +38,14 @@ export function GlobalSyncAlert() {
           <path d="M10 2.5l8 14H2l8-14z" />
           <path d="M10 8v3.5M10 14.2v.3" />
         </svg>
-        <span>
-          {total} {total === 1 ? "company needs" : "companies need"} attention — data may not be fully synced
+        <span className="min-w-0 truncate text-left">
+          {total} {total === 1 ? "company needs" : "companies need"} attention
+          <span className="hidden sm:inline"> — data may not be fully synced</span>
         </span>
-        <span className="ml-auto text-ink-muted">{expanded ? "Hide details" : "Show details"}</span>
+        <span className="ml-auto shrink-0 text-ink-muted">
+          {expanded ? "Hide" : "Show"}
+          <span className="hidden sm:inline"> details</span>
+        </span>
       </button>
       {expanded && (
         <div className="pt-3">

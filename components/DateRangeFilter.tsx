@@ -19,7 +19,7 @@ export function DateRangeFilter({
   onCustomEndChange: (value: string) => void;
 }) {
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       <select
         value={preset}
         onChange={(e) => onPresetChange(e.target.value as DateRangePreset)}

@@ -84,7 +84,7 @@ export default function OverviewPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <CompanyFilter companies={companies} value={companyId} onChange={setCompanyId} />
         <DateRangeFilter
           preset={preset}
@@ -96,7 +96,7 @@ export default function OverviewPage() {
         />
       </div>
 
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
         <StatTile
           label="Candidates added"
           value={candidatesAdded}
